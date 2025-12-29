@@ -1,17 +1,19 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { UserRole, User, ANCVisit, AppState } from './types';
 import { MOCK_USERS, NAVIGATION, PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
 import { 
   LogOut, Menu, X, CheckCircle, AlertCircle, 
   Printer, Download, Search, MapPin, Phone, 
-  LayoutDashboard, Users, UserPlus, Settings, BookOpen, QrCode
+  LayoutDashboard, Users, UserPlus, Settings, BookOpen, QrCode,
+  Bell, Info
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
 // Views
-const Dashboard = ({ state, patients }: { state: AppState, patients: User[] }) => {
-  const missedCount = state.ancVisits.filter(v => v.status === 'MISSED').length;
+const Dashboard = ({ state, patients, setView }: { state: AppState, patients: User[], setView: (v: string) => void }) => {
+  const missedVisits = state.ancVisits.filter(v => v.status === 'MISSED');
+  const missedCount = missedVisits.length;
   const activePatients = patients.length;
   
   return (
@@ -26,13 +28,18 @@ const Dashboard = ({ state, patients }: { state: AppState, patients: User[] }) =
             <p className="text-2xl font-bold">{activePatients}</p>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
-          <div className="bg-red-100 p-3 rounded-lg text-red-600">
+        <div 
+          onClick={() => missedCount > 0 && setView('notifications')}
+          className={`p-6 rounded-xl shadow-sm border flex items-center space-x-4 cursor-pointer transition-all ${
+            missedCount > 0 ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-white border-gray-100'
+          }`}
+        >
+          <div className={`p-3 rounded-lg ${missedCount > 0 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-400'}`}>
             <AlertCircle size={24} />
           </div>
           <div>
-            <p className="text-sm text-gray-500 font-medium">Absensi Terlewat (Auto-Flag)</p>
-            <p className="text-2xl font-bold">{missedCount}</p>
+            <p className="text-sm text-gray-500 font-medium">Auto-Flag (Melewatkan ANC)</p>
+            <p className={`text-2xl font-bold ${missedCount > 0 ? 'text-red-700' : 'text-gray-900'}`}>{missedCount}</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
@@ -45,6 +52,22 @@ const Dashboard = ({ state, patients }: { state: AppState, patients: User[] }) =
           </div>
         </div>
       </div>
+
+      {missedCount > 0 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start gap-4 shadow-sm">
+          <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={20} />
+          <div className="flex-1">
+            <h3 className="text-red-800 font-bold text-sm uppercase tracking-wide">Peringatan Sistem Auto-Flag</h3>
+            <p className="text-red-700 text-sm mt-1">Ditemukan {missedCount} pasien yang tidak hadir sesuai jadwal. Segera lakukan tindak lanjut (monitoring kunjungan).</p>
+          </div>
+          <button 
+            onClick={() => setView('monitoring')}
+            className="text-xs font-bold text-red-800 underline uppercase tracking-tighter"
+          >
+            Tindak Lanjut Sekarang
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-100">
@@ -61,19 +84,19 @@ const Dashboard = ({ state, patients }: { state: AppState, patients: User[] }) =
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {state.ancVisits.slice(0, 5).map((v) => {
+              {state.ancVisits.slice(0, 10).map((v) => {
                 const patient = state.users.find(u => u.id === v.patientId);
                 return (
                   <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900">{patient?.name || 'Unknown'}</td>
-                    <td className="px-6 py-4 text-gray-600">{v.visitDate}</td>
-                    <td className="px-6 py-4 text-gray-600">{v.bloodPressure}</td>
+                    <td className="px-6 py-4 text-gray-600">{v.status === 'MISSED' ? v.scheduledDate : v.visitDate}</td>
+                    <td className="px-6 py-4 text-gray-600">{v.bloodPressure || '-'}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider ${
                         v.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
-                        v.status === 'MISSED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                        v.status === 'MISSED' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {v.status}
+                        {v.status === 'MISSED' ? 'AUTO-FLAG: MISSED' : v.status}
                       </span>
                     </td>
                   </tr>
@@ -214,6 +237,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [view, setView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [state, setState] = useState<AppState>({
     currentUser: null,
     users: MOCK_USERS,
@@ -225,14 +249,15 @@ export default function App() {
     selectedPatientId: null,
   });
 
+  const missedVisits = useMemo(() => state.ancVisits.filter(v => v.status === 'MISSED'), [state.ancVisits]);
+
   const handleLogout = () => {
-    // Menggunakan timeout kecil untuk memastikan UI tidak stuck saat dialog confirm muncul
     setTimeout(() => {
       if (window.confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
         setCurrentUser(null);
         setView('dashboard');
         setState(prev => ({ ...prev, selectedPatientId: null }));
-        console.log("User logged out successfully");
+        setShowNotificationPanel(false);
       }
     }, 10);
   };
@@ -246,7 +271,7 @@ export default function App() {
             <CheckCircle size={48} />
           </div>
           <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Smart ANC</h1>
-          <p className="text-gray-500 mb-8">Pilih akun untuk mulai eksplorasi prototipe</p>
+          <p className="text-gray-500 mb-8">Sistem Monitoring Ibu Hamil Pintar</p>
           <div className="space-y-4">
             <button onClick={() => setCurrentUser(MOCK_USERS[2])} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200">
               Login sebagai Admin
@@ -268,7 +293,7 @@ export default function App() {
 
   const renderContent = () => {
     switch(view) {
-      case 'dashboard': return <Dashboard state={state} patients={state.users.filter(u => u.role === UserRole.USER)} />;
+      case 'dashboard': return <Dashboard state={state} patients={state.users.filter(u => u.role === UserRole.USER)} setView={setView} />;
       case 'patients': return <PatientList users={state.users} role={currentUser.role} />;
       case 'smart-card': return (
         <div className="space-y-6">
@@ -321,6 +346,50 @@ export default function App() {
         </div>
       );
       case 'map': return <MapView users={state.users} />;
+      case 'notifications': return (
+        <div className="max-w-3xl mx-auto space-y-4">
+          <h2 className="text-2xl font-bold text-gray-800">Pusat Notifikasi Auto-Flag</h2>
+          <div className="space-y-3">
+            {missedVisits.length > 0 ? missedVisits.map((v) => {
+              const patient = state.users.find(u => u.id === v.patientId);
+              return (
+                <div key={v.id} className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 flex gap-4 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="bg-red-100 p-3 rounded-xl text-red-600 shrink-0 h-fit">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-gray-900">Pasien Melewatkan Jadwal</h3>
+                      <span className="text-xs font-medium text-gray-400">{v.scheduledDate}</span>
+                    </div>
+                    <p className="text-gray-600 text-sm mt-1">
+                      <span className="font-bold text-gray-800">{patient?.name}</span> tidak terdeteksi melakukan pendaftaran/kunjungan ANC pada tanggal yang dijadwalkan.
+                    </p>
+                    <div className="mt-4 flex gap-3">
+                      <button 
+                        onClick={() => setView('monitoring')}
+                        className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
+                      >
+                        Lakukan Monitoring
+                      </button>
+                      <button className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200 transition">
+                        Hubungi Pasien
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-100">
+                <div className="bg-gray-50 p-4 rounded-full inline-block mb-4">
+                  <Bell className="text-gray-300" size={48} />
+                </div>
+                <p className="text-gray-500 font-medium">Tidak ada notifikasi baru saat ini.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
       case 'register': return (
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-3xl mx-auto">
           <h2 className="text-2xl font-bold mb-6">Pendaftaran / Input Data Ibu Hamil</h2>
@@ -343,8 +412,18 @@ export default function App() {
       );
       case 'monitoring': return (
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl font-bold mb-4">Fitur Monitoring Nakes</h2>
-          <p className="text-gray-500">Silakan pilih pasien di menu "Data Pasien" untuk memulai monitoring perkembangan.</p>
+          <h2 className="text-2xl font-bold mb-4">Fitur Monitoring & Tindak Lanjut</h2>
+          <p className="text-gray-500 mb-8">Menu ini digunakan untuk nakes menginput hasil pemeriksaan (tekanan darah, keluhan, edema, janin) dan tindak lanjut pasca notifikasi auto-flag.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+            <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+               <h3 className="font-bold text-blue-800 mb-2">Evaluasi Janin</h3>
+               <p className="text-sm text-blue-600">Nakes dapat memonitor pergerakan janin yang diinput oleh ibu atau diperiksa di tempat.</p>
+            </div>
+            <div className="p-6 bg-green-50 rounded-2xl border border-green-100">
+               <h3 className="font-bold text-green-800 mb-2">Penjadwalan ANC</h3>
+               <p className="text-sm text-green-600">Update jadwal kunjungan berikutnya untuk menghindari flag di masa depan.</p>
+            </div>
+          </div>
         </div>
       );
       case 'contact': return (
@@ -365,7 +444,7 @@ export default function App() {
           </div>
         </div>
       );
-      default: return <Dashboard state={state} patients={state.users.filter(u => u.role === UserRole.USER)} />;
+      default: return <Dashboard state={state} patients={state.users.filter(u => u.role === UserRole.USER)} setView={setView} />;
     }
   };
 
@@ -433,13 +512,72 @@ export default function App() {
               {NAVIGATION.find(n => n.path === view)?.name || 'Dashboard'}
             </h1>
           </div>
-          <button 
-            onClick={handleLogout}
-            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-            title="Keluar Sesi"
-          >
-            <LogOut size={22} />
-          </button>
+          
+          <div className="flex items-center gap-4">
+            {/* Notification Bell (Only for Admin/Nakes) */}
+            {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.NAKES) && (
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotificationPanel(!showNotificationPanel)}
+                  className={`p-2 rounded-full transition-colors relative ${showNotificationPanel ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-50'}`}
+                >
+                  <Bell size={22} />
+                  {missedVisits.length > 0 && (
+                    <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+                      {missedVisits.length}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Mini Dropdown Notification */}
+                {showNotificationPanel && (
+                  <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+                      <span className="text-sm font-bold text-gray-800">Notifikasi Terkini</span>
+                      <button onClick={() => setShowNotificationPanel(false)}><X size={16} className="text-gray-400" /></button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {missedVisits.length > 0 ? missedVisits.map(v => (
+                        <div key={v.id} className="p-4 border-b border-gray-50 hover:bg-blue-50/30 transition cursor-pointer" onClick={() => { setView('notifications'); setShowNotificationPanel(false); }}>
+                          <div className="flex gap-3">
+                            <div className="bg-red-100 p-2 rounded-lg text-red-600 shrink-0 h-fit">
+                              <AlertCircle size={16} />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-gray-900">Jadwal Melewatkan: {state.users.find(u => u.id === v.patientId)?.name}</p>
+                              <p className="text-[11px] text-gray-500 mt-0.5">Sistem auto-flag mendeteksi ketidakhadiran.</p>
+                              <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold">{v.scheduledDate}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="p-8 text-center">
+                          <Info size={32} className="mx-auto text-gray-200 mb-2" />
+                          <p className="text-xs text-gray-400">Semua pasien hadir sesuai jadwal.</p>
+                        </div>
+                      )}
+                    </div>
+                    {missedVisits.length > 0 && (
+                      <button 
+                        onClick={() => { setView('notifications'); setShowNotificationPanel(false); }}
+                        className="w-full p-3 text-center text-xs font-bold text-blue-600 bg-white hover:bg-blue-50 transition border-t border-gray-50"
+                      >
+                        Lihat Semua Notifikasi
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <button 
+              onClick={handleLogout}
+              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+              title="Keluar Sesi"
+            >
+              <LogOut size={22} />
+            </button>
+          </div>
         </header>
 
         <div className="p-6 lg:p-10">
