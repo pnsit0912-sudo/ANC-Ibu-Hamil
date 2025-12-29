@@ -1,8 +1,12 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserRole, User, ANCVisit, AppState } from './types';
 import { MOCK_USERS, NAVIGATION, PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
-import { LogOut, Menu, X, CheckCircle, AlertCircle, Printer, Download, Search, MapPin, Phone } from 'lucide-react';
+import { 
+  LogOut, Menu, X, CheckCircle, AlertCircle, 
+  Printer, Download, Search, MapPin, Phone, 
+  LayoutDashboard, Users, UserPlus, Settings, BookOpen, QrCode
+} from 'lucide-react';
 import QRCode from 'react-qr-code';
 
 // Views
@@ -43,7 +47,7 @@ const Dashboard = ({ state, patients }: { state: AppState, patients: User[] }) =
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+        <div className="p-6 border-b border-gray-100">
           <h2 className="font-bold text-gray-800">Daftar Kunjungan Terbaru</h2>
         </div>
         <div className="overflow-x-auto">
@@ -147,21 +151,21 @@ const ANCSmartCard = ({ user, isAdmin }: { user: User, isAdmin: boolean }) => {
               <h1 className="text-2xl font-bold text-blue-800">KARTU ANC PINTAR</h1>
               <p className="text-gray-500 text-sm">{PUSKESMAS_INFO.name}</p>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between md:justify-start gap-4">
-                <span className="text-gray-400 font-medium w-32">Nama:</span>
+            <div className="space-y-2 text-left inline-block w-full">
+              <div className="flex gap-4">
+                <span className="text-gray-400 font-medium w-24">Nama:</span>
                 <span className="font-bold text-gray-800">{user.name}</span>
               </div>
-              <div className="flex justify-between md:justify-start gap-4">
-                <span className="text-gray-400 font-medium w-32">ID Pasien:</span>
+              <div className="flex gap-4">
+                <span className="text-gray-400 font-medium w-24">ID Pasien:</span>
                 <span className="font-bold text-gray-800">{user.id}</span>
               </div>
-              <div className="flex justify-between md:justify-start gap-4">
-                <span className="text-gray-400 font-medium w-32">Tgl Lahir:</span>
+              <div className="flex gap-4">
+                <span className="text-gray-400 font-medium w-24">Tgl Lahir:</span>
                 <span className="font-bold text-gray-800">{user.dob}</span>
               </div>
-              <div className="flex justify-between md:justify-start gap-4">
-                <span className="text-gray-400 font-medium w-32">Alamat:</span>
+              <div className="flex gap-4">
+                <span className="text-gray-400 font-medium w-24">Alamat:</span>
                 <span className="font-bold text-gray-800 text-sm">{user.address}</span>
               </div>
             </div>
@@ -200,10 +204,6 @@ const MapView = ({ users }: { users: User[] }) => {
             <p className="text-gray-600 font-medium">Integrasi Google Maps API</p>
             <p className="text-gray-400 text-sm">Menampilkan {users.filter(u => u.role === UserRole.USER).length} pasien terdaftar</p>
           </div>
-          {/* Mock Markers */}
-          <div className="absolute top-1/4 left-1/3 p-1 bg-white rounded-full shadow-lg border-2 border-red-500"><MapPin size={16} className="text-red-500" /></div>
-          <div className="absolute bottom-1/2 right-1/4 p-1 bg-white rounded-full shadow-lg border-2 border-red-500"><MapPin size={16} className="text-red-500" /></div>
-          <div className="absolute top-2/3 left-1/2 p-1 bg-white rounded-full shadow-lg border-2 border-blue-600"><MapPin size={16} className="text-blue-600" /></div>
         </div>
       </div>
     </div>
@@ -226,15 +226,18 @@ export default function App() {
   });
 
   const handleLogout = () => {
-    if (window.confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
-      setCurrentUser(null);
-      setView('dashboard');
-      // Reset state pilihan pasien juga untuk keamanan
-      setState(prev => ({ ...prev, selectedPatientId: null }));
-    }
+    // Menggunakan timeout kecil untuk memastikan UI tidak stuck saat dialog confirm muncul
+    setTimeout(() => {
+      if (window.confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
+        setCurrentUser(null);
+        setView('dashboard');
+        setState(prev => ({ ...prev, selectedPatientId: null }));
+        console.log("User logged out successfully");
+      }
+    }, 10);
   };
 
-  // Login Simulation early return
+  // Login Simulation
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center p-6">
@@ -245,17 +248,17 @@ export default function App() {
           <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Smart ANC</h1>
           <p className="text-gray-500 mb-8">Pilih akun untuk mulai eksplorasi prototipe</p>
           <div className="space-y-4">
-            <button onClick={() => setCurrentUser(MOCK_USERS[2])} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+            <button onClick={() => setCurrentUser(MOCK_USERS[2])} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200">
               Login sebagai Admin
             </button>
-            <button onClick={() => setCurrentUser(MOCK_USERS[3])} className="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center gap-2">
+            <button onClick={() => setCurrentUser(MOCK_USERS[3])} className="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
               Login sebagai Nakes
             </button>
-            <button onClick={() => setCurrentUser(MOCK_USERS[0])} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition flex items-center justify-center gap-2">
+            <button onClick={() => setCurrentUser(MOCK_USERS[0])} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-200">
               Login sebagai Ibu Hamil
             </button>
           </div>
-          <p className="mt-8 text-xs text-gray-400">© 2023 Smart ANC - Monitoring Ibu Hamil Pintar</p>
+          <p className="mt-8 text-xs text-gray-400">© 2023 Smart ANC - Puskesmas Pasar Minggu</p>
         </div>
       </div>
     );
@@ -304,14 +307,9 @@ export default function App() {
             <div key={item.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition">
               <img src={item.thumbnail} alt={item.title} className="w-full h-48 object-cover" />
               <div className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${
-                    item.type === 'VIDEO' ? 'bg-red-100 text-red-600' : 
-                    item.type === 'TEXT' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
-                  }`}>
-                    {item.type}
-                  </span>
-                </div>
+                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-blue-100 text-blue-600 mb-2 inline-block">
+                  {item.type}
+                </span>
                 <h3 className="font-bold text-gray-800 mb-2">{item.title}</h3>
                 <p className="text-sm text-gray-500 line-clamp-2">{item.content}</p>
                 <button className="mt-4 w-full py-2 bg-gray-50 text-blue-600 font-bold text-sm rounded-lg hover:bg-blue-50 transition">
@@ -330,84 +328,23 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Nama Lengkap</label>
-                <input type="text" className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contoh: Siti Aminah" />
+                <input type="text" required className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Tanggal Lahir</label>
-                <input type="date" className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Usia Kehamilan (Bulan)</label>
-                <select className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                  {[1,2,3,4,5,6,7,8,9].map(m => <option key={m} value={m}>{m} Bulan</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">No. Telepon / WhatsApp</label>
-                <input type="tel" className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="08..." />
+                <input type="date" required className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Alamat Lengkap (Terintegrasi Map)</label>
-              <textarea className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 h-24" placeholder="Masukkan alamat lengkap..."></textarea>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Riwayat Penyakit</label>
-              <textarea className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 h-24" placeholder="Contoh: Asma, Alergi, dll"></textarea>
-            </div>
-            <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">
-              Simpan Data Pendaftaran
+            <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition">
+              Simpan Data
             </button>
           </form>
         </div>
       );
       case 'monitoring': return (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6">Input Monitoring Nakes (Follow-up)</h2>
-          <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <label className="block text-sm font-bold text-blue-800 mb-2">Pilih Pasien Terdaftar</label>
-            <select className="w-full p-3 border-none bg-white rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-              {state.users.filter(u => u.role === UserRole.USER).map(u => <option key={u.id} value={u.id}>{u.name} - ID: {u.id}</option>)}
-            </select>
-          </div>
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); alert('Monitoring berhasil disimpan!'); }}>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Tekanan Darah (mmHg)</label>
-                <input type="text" className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contoh: 120/80" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Bengkak Kaki/Tangan (Edema)</label>
-                <div className="flex gap-4 p-3 border border-gray-200 rounded-xl">
-                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="edema" value="ya" /> Ya</label>
-                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="edema" value="tidak" /> Tidak</label>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Gerakan Janin</label>
-                <select className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>Sangat Aktif</option>
-                  <option>Aktif</option>
-                  <option>Kurang Aktif</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Penjadwalan Kunjungan Berikutnya (ANC)</label>
-                <input type="date" className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Keluhan Ibu</label>
-              <textarea className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 h-24" placeholder="Masukkan keluhan jika ada..."></textarea>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Evaluasi & Tindak Lanjut Nakes</label>
-              <textarea className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 h-24" placeholder="Saran/tindakan medis..."></textarea>
-            </div>
-            <button type="submit" className="w-full py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-lg shadow-green-200">
-              Simpan Hasil Monitoring
-            </button>
-          </form>
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto text-center">
+          <h2 className="text-2xl font-bold mb-4">Fitur Monitoring Nakes</h2>
+          <p className="text-gray-500">Silakan pilih pasien di menu "Data Pasien" untuk memulai monitoring perkembangan.</p>
         </div>
       );
       case 'contact': return (
@@ -416,29 +353,14 @@ export default function App() {
             <Phone size={48} />
           </div>
           <h2 className="text-3xl font-bold mb-4">{PUSKESMAS_INFO.name}</h2>
-          <p className="text-gray-500 mb-8 max-w-md mx-auto">Kami siap melayani Anda dengan sepenuh hati. Silakan hubungi kami atau kunjungi alamat kami untuk pelayanan kesehatan.</p>
           <div className="space-y-4 text-left border-t pt-8">
-            <div className="flex items-start gap-4 p-4 hover:bg-gray-50 rounded-xl transition">
-              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><MapPin size={24} /></div>
-              <div>
-                <p className="font-bold text-gray-800">Alamat</p>
-                <p className="text-gray-600">{PUSKESMAS_INFO.address}</p>
-              </div>
+            <div className="flex items-start gap-4 p-4">
+              <MapPin size={24} className="text-blue-600 shrink-0" />
+              <p className="text-gray-600">{PUSKESMAS_INFO.address}</p>
             </div>
-            <div className="flex items-start gap-4 p-4 hover:bg-gray-50 rounded-xl transition">
-              <div className="p-2 bg-green-100 text-green-600 rounded-lg"><Phone size={24} /></div>
-              <div>
-                <p className="font-bold text-gray-800">Telepon / WhatsApp</p>
-                <p className="text-gray-600">{PUSKESMAS_INFO.phone}</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 h-48 bg-gray-100 rounded-xl overflow-hidden relative">
-            <img src="https://picsum.photos/seed/puskesmas/800/400" className="w-full h-full object-cover opacity-50" alt="map" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-white px-4 py-2 rounded-full shadow-lg border border-blue-200 font-bold text-blue-600 flex items-center gap-2">
-                <MapPin size={16} /> Lokasi Puskesmas
-              </div>
+            <div className="flex items-start gap-4 p-4">
+              <Phone size={24} className="text-green-600 shrink-0" />
+              <p className="text-gray-600">{PUSKESMAS_INFO.phone}</p>
             </div>
           </div>
         </div>
@@ -457,10 +379,10 @@ export default function App() {
               <div className="bg-blue-600 p-2 rounded-lg text-white">
                 <CheckCircle size={24} />
               </div>
-              <span className="text-xl font-black text-gray-900 tracking-tight">Smart ANC</span>
+              <span className="text-xl font-black text-gray-900">Smart ANC</span>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-gray-400 hover:text-gray-600">
-              <X size={24} />
+            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden">
+              <X size={24} className="text-gray-400" />
             </button>
           </div>
 
@@ -470,7 +392,7 @@ export default function App() {
                 key={nav.path}
                 onClick={() => setView(nav.path)}
                 className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  view === nav.path ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  view === nav.path ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'
                 }`}
               >
                 {nav.icon}
@@ -480,7 +402,7 @@ export default function App() {
           </nav>
 
           <div className="mt-auto pt-6 border-t border-gray-100">
-            <div className="flex items-center gap-3 px-4 py-3">
+            <div className="flex items-center gap-3 px-4 py-3 mb-2">
               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
                 {currentUser.name.charAt(0)}
               </div>
@@ -491,7 +413,7 @@ export default function App() {
             </div>
             <button 
               onClick={handleLogout}
-              className="mt-2 w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-all"
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-all"
             >
               <LogOut size={20} />
               Keluar Sesi
@@ -502,29 +424,22 @@ export default function App() {
 
       {/* Main Content */}
       <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-72' : 'ml-0'}`}>
-        {/* Header */}
         <header className="no-print h-20 bg-white border-b border-gray-100 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-40">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg">
-              <Menu size={24} />
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 lg:hidden">
+              <Menu size={24} className="text-gray-400" />
             </button>
             <h1 className="text-xl font-bold text-gray-800 capitalize">
               {NAVIGATION.find(n => n.path === view)?.name || 'Dashboard'}
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Peran Akses</span>
-              <span className="text-sm font-bold text-blue-600">{currentUser.role}</span>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-              title="Keluar Sesi"
-            >
-              <LogOut size={22} />
-            </button>
-          </div>
+          <button 
+            onClick={handleLogout}
+            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+            title="Keluar Sesi"
+          >
+            <LogOut size={22} />
+          </button>
         </header>
 
         <div className="p-6 lg:p-10">
