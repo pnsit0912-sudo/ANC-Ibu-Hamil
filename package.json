@@ -3,11 +3,17 @@
   "name": "smart-anc",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "lucide-react": "^0.562.0",
     "react-qr-code": "^2.0.18"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.0.0"
   },
   "scripts": {
     "dev": "vite",
