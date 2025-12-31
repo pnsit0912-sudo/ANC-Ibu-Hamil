@@ -6,7 +6,7 @@ import { RISK_FACTORS_MASTER, calculatePregnancyProgress, getRiskCategory } from
 import { 
   CheckCircle, AlertCircle, Users, Calendar, AlertTriangle,
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, ArrowUpRight, Activity, TrendingUp,
-  Stethoscope, Thermometer, Droplets, Heart, ClipboardCheck, MapPin, ShieldAlert, ChevronRight, UserCircle, QrCode, BookOpen, Map as MapIcon, RefreshCcw, FileText
+  Stethoscope, Thermometer, Droplets, Heart, ClipboardCheck, MapPin, ShieldAlert, ChevronRight, UserCircle, QrCode, BookOpen, Map as MapIcon, RefreshCcw, FileText, Info, Phone
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -27,6 +27,7 @@ export default function App() {
   const [patientSearch, setPatientSearch] = useState('');
   const [editingPatient, setEditingPatient] = useState<User | null>(null);
   const [isAddingVisit, setIsAddingVisit] = useState<User | null>(null);
+  const [viewingPatientProfile, setViewingPatientProfile] = useState<string | null>(null);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
   const [tempRiskFactors, setTempRiskFactors] = useState<string[]>([]);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -132,6 +133,7 @@ export default function App() {
   const handleNavigate = (targetView: string) => {
     setEditingPatient(null);
     setIsAddingVisit(null);
+    setViewingPatientProfile(null);
     setTempRiskFactors([]);
     setPatientSearch('');
     setView(targetView);
@@ -422,6 +424,136 @@ export default function App() {
 
   if (!currentUser) return <LoginScreen users={state.users} onLogin={(u) => setCurrentUser(u)} />;
 
+  // Modal Rekam Medis (View Only)
+  const PatientProfileModal = () => {
+    if (!viewingPatientProfile) return null;
+    const patient = state.users.find(u => u.id === viewingPatientProfile);
+    if (!patient) return null;
+    const progress = calculatePregnancyProgress(patient.hpht);
+    const patientVisits = state.ancVisits.filter(v => v.patientId === patient.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
+    const latest = patientVisits[0];
+    const risk = getRiskCategory(patient.totalRiskScore, latest);
+
+    return (
+      <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6 lg:p-12 animate-in fade-in duration-300" onClick={() => setViewingPatientProfile(null)}>
+        <div className="bg-white w-full max-w-5xl h-full max-h-[90vh] rounded-[4rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+           {/* Header Profil */}
+           <div className={`p-12 ${risk.color} flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative overflow-hidden`}>
+              <div className="relative z-10">
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl font-black text-white border border-white/30">
+                    {patient.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">{patient.name}</h2>
+                    <p className="text-[10px] font-black uppercase tracking-widest mt-2 opacity-80">Identitas ANC: {patient.id} | G{patient.pregnancyNumber}P{patient.pregnancyNumber-1}A0</p>
+                  </div>
+                </div>
+              </div>
+              <div className="relative z-10 text-right">
+                <div className="inline-flex flex-col items-end">
+                   <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1">Skor Risiko Terpadu</span>
+                   <span className="text-5xl font-black leading-none">{patient.totalRiskScore + 2} <span className="text-sm">Pts</span></span>
+                </div>
+              </div>
+              <button onClick={() => setViewingPatientProfile(null)} className="absolute top-10 right-10 p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all text-white"><X size={24}/></button>
+           </div>
+
+           <div className="flex-1 overflow-y-auto p-12 custom-scrollbar space-y-12">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                 {/* Kolom 1: Status Kehamilan */}
+                 <div className="space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><Baby size={16}/> Informasi Kandungan</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                       <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                          <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Usia Kehamilan</p>
+                          <p className="text-xl font-black text-indigo-900">{progress?.months} Bulan / {progress?.weeks} Minggu</p>
+                       </div>
+                       <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                          <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Estimasi Persalinan (HPL)</p>
+                          <p className="text-xl font-black text-indigo-900">{progress?.hpl}</p>
+                       </div>
+                       <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                          <p className="text-[9px] font-black text-gray-400 uppercase mb-1">HPHT</p>
+                          <p className="text-xl font-black text-indigo-900">{patient.hpht}</p>
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Kolom 2: Analisa SPR (Faktor Risiko) */}
+                 <div className="space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ShieldAlert size={16}/> Faktor Risiko SPR</h3>
+                    <div className="space-y-3">
+                       {patient.selectedRiskFactors.map(id => (
+                         <div key={id} className="p-4 bg-red-50 rounded-2xl border border-red-100 flex justify-between items-center">
+                            <span className="text-[10px] font-black text-red-900 uppercase">{RISK_FACTORS_MASTER[id].label}</span>
+                            <span className="text-xs font-black text-red-600">+{RISK_FACTORS_MASTER[id].score}</span>
+                         </div>
+                       ))}
+                       {patient.selectedRiskFactors.length === 0 && (
+                         <div className="p-10 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem]">
+                            <p className="text-[10px] font-bold text-gray-300 uppercase">Tidak Ada Riwayat Komplikasi</p>
+                         </div>
+                       )}
+                    </div>
+                 </div>
+
+                 {/* Kolom 3: Kontak & Alamat */}
+                 <div className="space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><MapPin size={16}/> Lokasi & Kontak</h3>
+                    <div className="p-8 bg-indigo-50 rounded-[3rem] border border-indigo-100">
+                       <p className="text-xs font-black text-indigo-900 uppercase mb-4">{patient.phone}</p>
+                       <p className="text-[11px] font-bold text-gray-500 leading-relaxed uppercase">{patient.address}, Kel. {patient.kelurahan}, Kec. {patient.kecamatan}</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Tabel Riwayat Pemeriksaan ANC */}
+              <div className="space-y-6">
+                 <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2"><ClipboardCheck size={16}/> Riwayat Pemeriksaan ANC</h3>
+                 <div className="bg-white border border-gray-100 rounded-[3rem] overflow-hidden">
+                    <table className="w-full text-left">
+                       <thead className="bg-gray-50/50">
+                          <tr className="text-[9px] font-black uppercase text-gray-400 border-b border-gray-50">
+                             <th className="px-8 py-5">Tanggal</th>
+                             <th className="px-8 py-5">T. Darah</th>
+                             <th className="px-8 py-5">HB</th>
+                             <th className="px-8 py-5">BB (kg)</th>
+                             <th className="px-8 py-5">TFU/DJJ</th>
+                             <th className="px-8 py-5">Tanda Bahaya</th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y divide-gray-50">
+                          {patientVisits.map(v => (
+                            <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
+                               <td className="px-8 py-5 text-[10px] font-black text-gray-900 uppercase">{v.visitDate}</td>
+                               <td className="px-8 py-5 text-[10px] font-black text-indigo-600">{v.bloodPressure}</td>
+                               <td className="px-8 py-5 text-[10px] font-black text-red-600">{v.hb} g/dL</td>
+                               <td className="px-8 py-5 text-[10px] font-black text-gray-900">{v.weight}</td>
+                               <td className="px-8 py-5 text-[10px] font-black text-gray-900">{v.tfu} cm / {v.djj} bpm</td>
+                               <td className="px-8 py-5">
+                                  <div className="flex flex-wrap gap-1">
+                                     {v.dangerSigns.map(s => <span key={s} className="px-2 py-1 bg-red-100 text-red-700 rounded-lg text-[8px] font-black uppercase">{s}</span>)}
+                                     {v.dangerSigns.length === 0 && <span className="text-[9px] font-bold text-emerald-500 uppercase">NIHIL</span>}
+                                  </div>
+                               </td>
+                            </tr>
+                          ))}
+                       </tbody>
+                    </table>
+                 </div>
+              </div>
+           </div>
+
+           <div className="p-12 border-t border-gray-50 bg-gray-50/30 flex justify-end gap-4">
+              <button onClick={() => setViewingPatientProfile(null)} className="px-10 py-5 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase hover:bg-gray-50 transition-all">Tutup Profil</button>
+              <a href={`tel:${patient.phone}`} className="px-10 py-5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl shadow-indigo-100 flex items-center gap-2"><Phone size={14}/> Hubungi Ibu</a>
+           </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <Sidebar 
@@ -653,13 +785,14 @@ export default function App() {
           )}
 
           {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser} addLog={()=>{}} />}
-          {view === 'monitoring' && <RiskMonitoring state={state} onNavigateToPatient={handleNavigate} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
+          {view === 'monitoring' && <RiskMonitoring state={state} onViewProfile={(id)=>setViewingPatientProfile(id)} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
           {view === 'map' && <MapView users={state.users} visits={state.ancVisits} />}
           {view === 'smart-card' && <SmartCardModule state={state} setState={setState} isUser={currentUser.role === UserRole.USER} user={currentUser} />}
           {view === 'education' && <EducationModule />}
           {view === 'contact' && <ContactModule />}
         </div>
       </main>
+      <PatientProfileModal />
     </div>
   );
 }

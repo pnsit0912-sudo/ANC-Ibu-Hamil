@@ -11,12 +11,12 @@ import { getRiskCategory } from './utils';
 
 interface RiskMonitoringProps {
   state: AppState;
-  onNavigateToPatient: (patientId: string) => void;
+  onViewProfile: (patientId: string) => void;
   onAddVisit: (u: User) => void;
   onToggleVisitStatus: (visitId: string) => void;
 }
 
-export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onNavigateToPatient, onAddVisit, onToggleVisitStatus }) => {
+export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit, onToggleVisitStatus }) => {
   const { users, ancVisits } = state;
   const [filterKelurahan, setFilterKelurahan] = useState<string>('ALL');
 
@@ -279,7 +279,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onNavigat
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => onNavigateToPatient(p.id)} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white text-slate-900' : 'bg-indigo-600 text-white'}`}>Profil Medis</button>
+                <button onClick={() => onViewProfile(p.id)} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white text-slate-900' : 'bg-indigo-600 text-white'}`}>Profil Medis</button>
                 <button onClick={() => onAddVisit(p)} className={`p-4 rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-400'}`}><Activity size={18}/></button>
               </div>
             </div>
