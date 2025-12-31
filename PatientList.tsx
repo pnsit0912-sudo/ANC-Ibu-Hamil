@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2, Check } from 'lucide-react';
+import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2, Check, Baby } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
-import { getMedicalRecommendation } from './utils';
+import { getMedicalRecommendation, calculatePregnancyProgress } from './utils';
 
 interface PatientListProps {
   users: User[];
@@ -23,7 +23,6 @@ export const PatientList: React.FC<PatientListProps> = ({
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [isPrivacyOn, setIsPrivacyOn] = useState(true);
   
-  // Efek untuk Deep Linking (Otomatis buka riwayat dari modul lain)
   useEffect(() => {
     if (initialSelectedHistoryId) {
       setSelectedHistoryId(initialSelectedHistoryId);
@@ -82,6 +81,7 @@ export const PatientList: React.FC<PatientListProps> = ({
           <thead>
             <tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b">
               <th className="px-8 py-5">Identitas Pasien</th>
+              <th className="px-8 py-5">Usia Kehamilan</th>
               <th className="px-8 py-5">Status Resiko</th>
               <th className="px-8 py-5">Kontrol Berikutnya</th>
               <th className="px-8 py-5 text-center">Tindak Lanjut</th>
@@ -90,7 +90,7 @@ export const PatientList: React.FC<PatientListProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredUsers.map(u => {
-              const rec = getMedicalRecommendation(u.pregnancyMonth);
+              const progress = calculatePregnancyProgress(u.hpht);
               const userVisits = visits.filter(v => v.patientId === u.id);
               const isOpen = selectedHistoryId === u.id;
               const nextDate = getNextVisit(u.id);
@@ -103,6 +103,15 @@ export const PatientList: React.FC<PatientListProps> = ({
                     <td className="px-8 py-6">
                       <p className="font-bold text-gray-900 leading-tight">{u.name}</p>
                       <p className="text-[10px] text-gray-400 font-bold mt-0.5">{maskPhone(u.phone)}</p>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Baby size={14}/></span>
+                        <div>
+                          <p className="text-xs font-black text-gray-900">{progress?.weeks} Mgg {progress?.days} Hr</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Trimester {progress?.weeks && progress.weeks > 27 ? 'III' : progress?.weeks && progress.weeks > 12 ? 'II' : 'I'}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-8 py-6">
                        <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${risk.color}`}>
@@ -141,7 +150,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                   </tr>
                   {isOpen && (
                     <tr className="bg-gray-50/50 animate-in slide-in-from-top-2 duration-300">
-                      <td colSpan={5} className="px-12 py-10">
+                      <td colSpan={6} className="px-12 py-10">
                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
                             <div className="bg-white rounded-[2.5rem] p-10 border border-gray-100 shadow-sm relative overflow-hidden">
                                <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><Clock size={18} className="text-indigo-500"/> Timeline Pemeriksaan (Terintegrasi Dashboard)</h4>
@@ -150,13 +159,11 @@ export const PatientList: React.FC<PatientListProps> = ({
                                    const isCompleted = v.status === 'COMPLETED';
                                    return (
                                    <div key={v.id} className="flex gap-6 border-l-2 border-dashed border-gray-100 pl-8 pb-8 relative last:pb-0">
-                                     {/* Interactive Checklist Box */}
                                      <button 
                                        onClick={() => onToggleVisitStatus(v.id)}
                                        className={`absolute -left-[14px] top-0 w-7 h-7 rounded-full border-4 border-white shadow-md flex items-center justify-center transition-all transform hover:scale-110 active:scale-90 z-10 ${
                                          isCompleted ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400 hover:bg-emerald-100 hover:text-emerald-500'
                                        }`}
-                                       title={isCompleted ? "Tandai Belum Selesai (Analisis resiko akan diperbarui)" : "Tandai Selesai (Validasi untuk analisis resiko)"}
                                      >
                                        {isCompleted ? <Check size={14} strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                                      </button>
@@ -174,7 +181,6 @@ export const PatientList: React.FC<PatientListProps> = ({
                                               <button 
                                                 onClick={() => onDeleteVisit(v.id)}
                                                 className="text-red-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-lg"
-                                                title="Hapus Kunjungan"
                                               >
                                                 <Trash2 size={14} />
                                               </button>

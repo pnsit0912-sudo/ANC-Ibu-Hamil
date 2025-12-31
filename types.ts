@@ -7,12 +7,17 @@ export enum UserRole {
 
 export interface User {
   id: string;
+  username?: string; // ID Login
+  password?: string; // Kata Sandi Login
   name: string;
   dob: string;
   address: string;
+  kecamatan: string;
+  kelurahan: string;
   lat?: number;
   lng?: number;
-  pregnancyMonth: number;
+  hpht: string; // Hari Pertama Haid Terakhir (ISO String)
+  pregnancyMonth: number; 
   pregnancyNumber: number;
   medicalHistory: string;
   role: UserRole;
@@ -25,7 +30,7 @@ export interface ANCVisit {
   patientId: string;
   visitDate: string;
   scheduledDate: string;
-  nextVisitDate: string; // Fitur Baru: Tanggal Kunjungan Selanjutnya
+  nextVisitDate: string;
   bloodPressure: string;
   complaints: string;
   edema: boolean;
@@ -45,6 +50,14 @@ export interface SystemLog {
   details: string;
 }
 
+export interface AppState {
+  currentUser: User | null;
+  users: User[];
+  ancVisits: ANCVisit[];
+  selectedPatientId: string | null;
+  logs: SystemLog[];
+}
+
 export interface EducationContent {
   id: string;
   title: string;
@@ -52,12 +65,4 @@ export interface EducationContent {
   content: string;
   thumbnail: string;
   url: string;
-}
-
-export interface AppState {
-  currentUser: User | null;
-  users: User[];
-  ancVisits: ANCVisit[];
-  selectedPatientId: string | null;
-  logs: SystemLog[];
 }
