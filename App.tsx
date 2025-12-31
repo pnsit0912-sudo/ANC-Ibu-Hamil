@@ -25,6 +25,7 @@ export default function App() {
   const [editingPatient, setEditingPatient] = useState<User | null>(null);
   const [isAddingVisit, setIsAddingVisit] = useState<User | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [autoOpenHistoryId, setAutoOpenHistoryId] = useState<string | null>(null);
 
   const [state, setState] = useState<AppState>({
     currentUser: null,
@@ -131,7 +132,8 @@ export default function App() {
     addLog('ADD_VISIT', 'MEDICAL', `Input kunjungan pasien: ${isAddingVisit.name}. Jadwal berikutnya: ${nextDate} ${sendWA ? '(WhatsApp Reminder Terjadwal)' : ''}`);
     
     setIsAddingVisit(null);
-    setView('monitoring');
+    // Jika kita menambah kunjungan dari Monitoring, tetap di Monitoring
+    if (view !== 'patients') setView('monitoring');
   };
 
   const handleDeleteVisit = (visitId: string) => {
@@ -165,6 +167,15 @@ export default function App() {
     addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Mengubah status kunjungan ${visit?.visitDate} milik ${patient?.name} menjadi ${newStatus}`);
   };
 
+  const handleNavigateToPatient = (patientId: string) => {
+    const patient = state.users.find(u => u.id === patientId);
+    if (patient) {
+      setPatientSearch(patient.name);
+      setAutoOpenHistoryId(patientId);
+      setView('patients');
+    }
+  };
+
   const renderContent = () => {
     if (currentUser && !currentUser.isActive) return <AccessDenied />;
 
@@ -183,12 +194,21 @@ export default function App() {
           onDeleteVisit={handleDeleteVisit}
           onToggleVisitStatus={handleToggleVisitStatus}
           currentUserRole={currentUser?.role || UserRole.USER}
-          searchFilter={patientSearch} 
+          searchFilter={patientSearch}
+          initialSelectedHistoryId={autoOpenHistoryId}
+          clearAutoOpen={() => setAutoOpenHistoryId(null)}
         />
       );
       case 'map': return <MapView users={state.users} />;
       case 'register': return <RegistrationForm initialData={editingPatient} onSubmit={handleRegisterSubmit} onCancel={() => setView('patients')} />;
-      case 'monitoring': return <RiskMonitoring state={state} />;
+      case 'monitoring': return (
+        <RiskMonitoring 
+          state={state} 
+          onNavigateToPatient={handleNavigateToPatient} 
+          onAddVisit={(u) => setIsAddingVisit(u)}
+          onToggleVisitStatus={handleToggleVisitStatus}
+        />
+      );
       case 'education': return <EducationModule />;
       case 'smart-card': return <SmartCardModule state={state} setState={setState} isUser={currentUser?.role === UserRole.USER} user={currentUser!} />;
       case 'contact': return <ContactModule />;

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2, Check } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
 import { getMedicalRecommendation } from './utils';
@@ -13,14 +13,24 @@ interface PatientListProps {
   onToggleVisitStatus: (visitId: string) => void;
   currentUserRole: UserRole;
   searchFilter: string;
+  initialSelectedHistoryId?: string | null;
+  clearAutoOpen?: () => void;
 }
 
 export const PatientList: React.FC<PatientListProps> = ({ 
-  users, visits, onEdit, onAddVisit, onDeleteVisit, onToggleVisitStatus, currentUserRole, searchFilter 
+  users, visits, onEdit, onAddVisit, onDeleteVisit, onToggleVisitStatus, currentUserRole, searchFilter, initialSelectedHistoryId, clearAutoOpen 
 }) => {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [isPrivacyOn, setIsPrivacyOn] = useState(true);
   
+  // Efek untuk Deep Linking (Otomatis buka riwayat dari modul lain)
+  useEffect(() => {
+    if (initialSelectedHistoryId) {
+      setSelectedHistoryId(initialSelectedHistoryId);
+      if (clearAutoOpen) clearAutoOpen();
+    }
+  }, [initialSelectedHistoryId]);
+
   const filteredUsers = users.filter(u => 
     u.role === 'USER' && 
     (u.name.toLowerCase().includes(searchFilter.toLowerCase()) || u.id.includes(searchFilter))
@@ -89,7 +99,7 @@ export const PatientList: React.FC<PatientListProps> = ({
 
               return (
                 <React.Fragment key={u.id}>
-                  <tr className="hover:bg-indigo-50/10 transition-colors">
+                  <tr className={`hover:bg-indigo-50/10 transition-colors ${isOpen ? 'bg-indigo-50/20' : ''}`}>
                     <td className="px-8 py-6">
                       <p className="font-bold text-gray-900 leading-tight">{u.name}</p>
                       <p className="text-[10px] text-gray-400 font-bold mt-0.5">{maskPhone(u.phone)}</p>
@@ -113,10 +123,10 @@ export const PatientList: React.FC<PatientListProps> = ({
                       <button 
                         onClick={() => setSelectedHistoryId(isOpen ? null : u.id)}
                         className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
-                          isOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100 text-gray-500 hover:bg-indigo-50 hover:text-indigo-600'
+                          isOpen ? 'bg-indigo-600 text-white shadow-lg scale-105' : 'bg-gray-100 text-gray-500 hover:bg-indigo-50 hover:text-indigo-600'
                         }`}
                       >
-                        <History size={14} /> {isOpen ? 'Tutup' : 'Riwayat'}
+                        <History size={14} /> {isOpen ? 'Tutup Riwayat' : 'Buka Riwayat'}
                       </button>
                       <button 
                         onClick={() => onAddVisit(u)}
@@ -134,7 +144,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                       <td colSpan={5} className="px-12 py-10">
                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
                             <div className="bg-white rounded-[2.5rem] p-10 border border-gray-100 shadow-sm relative overflow-hidden">
-                               <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><Clock size={18} className="text-indigo-500"/> Timeline Pemeriksaan</h4>
+                               <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><Clock size={18} className="text-indigo-500"/> Timeline Pemeriksaan (Terintegrasi Dashboard)</h4>
                                <div className="space-y-8">
                                  {userVisits.length > 0 ? userVisits.slice().reverse().map(v => {
                                    const isCompleted = v.status === 'COMPLETED';
@@ -143,27 +153,27 @@ export const PatientList: React.FC<PatientListProps> = ({
                                      {/* Interactive Checklist Box */}
                                      <button 
                                        onClick={() => onToggleVisitStatus(v.id)}
-                                       className={`absolute -left-[14px] top-0 w-7 h-7 rounded-full border-4 border-white shadow-md flex items-center justify-center transition-all transform hover:scale-110 active:scale-90 ${
+                                       className={`absolute -left-[14px] top-0 w-7 h-7 rounded-full border-4 border-white shadow-md flex items-center justify-center transition-all transform hover:scale-110 active:scale-90 z-10 ${
                                          isCompleted ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400 hover:bg-emerald-100 hover:text-emerald-500'
                                        }`}
-                                       title={isCompleted ? "Tandai Belum Selesai" : "Tandai Selesai"}
+                                       title={isCompleted ? "Tandai Belum Selesai (Analisis resiko akan diperbarui)" : "Tandai Selesai (Validasi untuk analisis resiko)"}
                                      >
                                        {isCompleted ? <Check size={14} strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                                      </button>
 
-                                     <div className={`flex-1 transition-opacity ${isCompleted ? 'opacity-100' : 'opacity-70'}`}>
+                                     <div className={`flex-1 transition-all ${isCompleted ? 'opacity-100 translate-x-1' : 'opacity-70 grayscale-[0.5]'}`}>
                                        <div className="flex items-center justify-between mb-3">
                                          <p className={`text-xs font-black uppercase tracking-tight ${isCompleted ? 'text-emerald-600' : 'text-gray-900'}`}>
-                                           {v.visitDate} {isCompleted && '✓ SELESAI'}
+                                           {v.visitDate} {isCompleted && '✓ VALIDASI KLINIS SELESAI'}
                                          </p>
                                          <div className="flex items-center gap-3">
                                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                              Kontrol Lanjut: {v.nextVisitDate}
+                                              Kontrol Berikutnya: {v.nextVisitDate}
                                             </span>
                                             {currentUserRole === UserRole.ADMIN && (
                                               <button 
                                                 onClick={() => onDeleteVisit(v.id)}
-                                                className="text-red-400 hover:text-red-600 transition-colors"
+                                                className="text-red-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-lg"
                                                 title="Hapus Kunjungan"
                                               >
                                                 <Trash2 size={14} />
@@ -171,12 +181,12 @@ export const PatientList: React.FC<PatientListProps> = ({
                                             )}
                                          </div>
                                        </div>
-                                       <div className={`grid grid-cols-2 gap-4 p-5 rounded-2xl border transition-all ${isCompleted ? 'bg-emerald-50/30 border-emerald-100' : 'bg-gray-50/50 border-gray-100'}`}>
+                                       <div className={`grid grid-cols-2 gap-4 p-5 rounded-2xl border transition-all ${isCompleted ? 'bg-emerald-50/30 border-emerald-100 shadow-sm' : 'bg-gray-50/50 border-gray-100'}`}>
                                          <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tensi</p><p className={`text-xs font-black ${isCompleted ? 'text-emerald-900' : 'text-gray-900'}`}>{v.bloodPressure}</p></div>
                                          <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Janin</p><p className={`text-xs font-black ${isCompleted ? 'text-emerald-900' : 'text-gray-900'}`}>{v.fetalMovement}</p></div>
                                        </div>
                                        <div className={`mt-4 p-4 rounded-2xl border italic transition-all ${isCompleted ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-100'}`}>
-                                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isCompleted ? 'text-emerald-400' : 'text-indigo-400'}`}>Tindak Lanjut</p>
+                                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isCompleted ? 'text-emerald-400' : 'text-indigo-400'}`}>Instruksi Medis</p>
                                           <p className={`text-[11px] font-bold leading-relaxed ${isCompleted ? 'text-emerald-900' : 'text-indigo-900'}`}>"{v.followUp}"</p>
                                        </div>
                                      </div>
