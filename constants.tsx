@@ -42,6 +42,9 @@ export const NAVIGATION = [
   { name: 'Kontak Kami', icon: <Phone size={20} />, roles: [UserRole.ADMIN, UserRole.NAKES, UserRole.USER], path: 'contact' },
 ];
 
+/**
+ * Updated MOCK_USERS to include missing properties required by the User interface
+ */
 export const MOCK_USERS: User[] = [
   {
     id: 'u1',
@@ -60,7 +63,9 @@ export const MOCK_USERS: User[] = [
     medicalHistory: 'Asma ringan',
     role: UserRole.USER,
     phone: '08571234567',
-    isActive: true
+    isActive: true,
+    selectedRiskFactors: [],
+    totalRiskScore: 0
   },
   {
     id: 'u2',
@@ -77,7 +82,9 @@ export const MOCK_USERS: User[] = [
     medicalHistory: 'Hipertensi',
     role: UserRole.USER,
     phone: '081299887766',
-    isActive: true
+    isActive: true,
+    selectedRiskFactors: [],
+    totalRiskScore: 0
   },
   {
     id: 'admin',
@@ -94,7 +101,9 @@ export const MOCK_USERS: User[] = [
     medicalHistory: 'N/A',
     role: UserRole.ADMIN,
     phone: '0812000000',
-    isActive: true
+    isActive: true,
+    selectedRiskFactors: [],
+    totalRiskScore: 0
   },
   {
     id: 'nakes1',
@@ -111,7 +120,9 @@ export const MOCK_USERS: User[] = [
     medicalHistory: 'N/A',
     role: UserRole.NAKES,
     phone: '0813111111',
-    isActive: true
+    isActive: true,
+    selectedRiskFactors: [],
+    totalRiskScore: 0
   }
 ];
 

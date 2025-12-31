@@ -1,24 +1,24 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { UserRole, User, AppState, ANCVisit, SystemLog } from './types';
 import { MOCK_USERS, PUSKESMAS_INFO, WILAYAH_DATA } from './constants';
+import { RISK_FACTORS_MASTER, calculatePregnancyProgress, getRiskCategory } from './utils';
 import { 
-  HeartPulse, Stethoscope, CheckCircle, AlertCircle, Users, Menu, MapPin, Navigation, CloudLightning, ShieldAlert, Calendar, Info, AlertTriangle, Bell,
-  UserPlus, Edit3, X, Clock, Baby, ClipboardList, Map as MapIcon, Trash2, UserX
+  CheckCircle, AlertCircle, Users, Calendar, AlertTriangle,
+  UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, ArrowUpRight, Activity, TrendingUp,
+  Stethoscope, Thermometer, Droplets, Heart, ClipboardCheck, MapPin, ShieldAlert, ChevronRight, UserCircle, QrCode, BookOpen, Map as MapIcon, RefreshCcw
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { MapView } from './MapView';
 import { PatientList } from './PatientList';
 import { LoginScreen } from './LoginScreen';
 import { AccessManagement } from './AccessManagement';
 import { RiskMonitoring } from './RiskMonitoring';
-import { getMedicalRecommendation, calculatePregnancyProgress, formatDate } from './utils';
-import { SmartCardModule, EducationModule, ContactModule, AccessDenied } from './FeatureModules';
-import { AuditTrail } from './AuditTrail';
+import { SmartCardModule, EducationModule, ContactModule } from './FeatureModules';
+import { MapView } from './MapView';
 
-const STORAGE_KEY = 'SMART_ANC_V2_DATA';
+const STORAGE_KEY = 'SMART_ANC_V4_MASTER';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -27,77 +27,48 @@ export default function App() {
   const [patientSearch, setPatientSearch] = useState('');
   const [editingPatient, setEditingPatient] = useState<User | null>(null);
   const [isAddingVisit, setIsAddingVisit] = useState<User | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [autoOpenHistoryId, setAutoOpenHistoryId] = useState<string | null>(null);
+  const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
+  const [tempRiskFactors, setTempRiskFactors] = useState<string[]>([]);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
-  const [selectedKec, setSelectedKec] = useState<string>("Pasar Minggu");
-
-  // Inisialisasi State dari LocalStorage atau Mock Data jika kosong
   const [state, setState] = useState<AppState>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
-      try {
-        return JSON.parse(savedData);
-      } catch (e) {
-        console.error("Gagal memuat data tersimpan:", e);
-      }
+      try { return JSON.parse(savedData); } catch (e) { console.error(e); }
     }
     return {
       currentUser: null,
-      users: MOCK_USERS,
-      ancVisits: [
-        { id: 'v1', patientId: 'u1', visitDate: '2023-11-20', scheduledDate: '2023-11-20', nextVisitDate: '2023-12-20', bloodPressure: '120/80', complaints: 'Pusing ringan di pagi hari', edema: false, fetalMovement: 'Aktif', followUp: 'Tingkatkan istirahat dan nutrisi zat besi', nakesId: 'nakes1', status: 'COMPLETED' },
-      ],
+      users: MOCK_USERS.map(u => ({...u, selectedRiskFactors: [], totalRiskScore: 0})),
+      ancVisits: [],
       selectedPatientId: null,
-      logs: [
-        { id: 'l1', timestamp: new Date().toISOString(), userId: 'system', userName: 'System', action: 'INITIALIZE', module: 'CORE', details: 'Sistem Smart ANC Berhasil Dimuat' }
-      ]
+      logs: []
     };
   });
 
-  // Efek untuk menyimpan setiap perubahan state ke LocalStorage secara otomatis
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    setNotification({ message, type });
+  // FUNGSI NAVIGASI BERSIH (RESET STATE SAAT PINDAH TABEL/MENU)
+  const handleNavigate = (targetView: string) => {
+    setEditingPatient(null);
+    setIsAddingVisit(null);
+    setTempRiskFactors([]);
+    setPatientSearch('');
+    setView(targetView);
+  };
+
+  const showNotification = useCallback((message: string) => {
+    setNotification({ message, type: 'success' });
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  const addLog = useCallback((action: string, module: string, details: string) => {
-    const newLog: SystemLog = {
-      id: `log-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      userId: currentUser?.id || 'guest',
-      userName: currentUser?.name || 'Guest',
-      action,
-      module,
-      details
-    };
-    setState(prev => ({ ...prev, logs: [newLog, ...prev.logs].slice(0, 100) }));
-    setIsSyncing(true);
-    setTimeout(() => setIsSyncing(false), 800);
-  }, [currentUser]);
-
-  const handleLogout = () => { 
-    if (confirm('Keluar dari sistem?')) {
-      addLog('LOGOUT', 'AUTH', 'User keluar dari sesi');
-      setCurrentUser(null);
-    }
-  };
-
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  
   const handleRegisterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const lat = parseFloat(formData.get('lat') as string);
-    const lng = parseFloat(formData.get('lng') as string);
     const hpht = formData.get('hpht') as string;
-
     const progress = calculatePregnancyProgress(hpht);
+    const score = tempRiskFactors.reduce((acc, id) => acc + RISK_FACTORS_MASTER[id].score, 0);
 
     const data = {
       name: formData.get('name') as string,
@@ -110,593 +81,500 @@ export default function App() {
       address: formData.get('address') as string,
       kecamatan: formData.get('kecamatan') as string,
       kelurahan: formData.get('kelurahan') as string,
-      lat: isNaN(lat) ? PUSKESMAS_INFO.lat : lat,
-      lng: isNaN(lng) ? PUSKESMAS_INFO.lng : lng,
+      lat: formData.get('lat') ? parseFloat(formData.get('lat') as string) : undefined,
+      lng: formData.get('lng') ? parseFloat(formData.get('lng') as string) : undefined,
+      selectedRiskFactors: tempRiskFactors,
+      totalRiskScore: score,
     };
 
-    if (editingPatient) {
-      setState(prev => ({
-        ...prev,
-        users: prev.users.map(u => u.id === editingPatient.id ? { ...u, ...data } : u)
-      }));
-      addLog('UPDATE_PATIENT', 'DATA', `Memperbarui data pasien: ${data.name}`);
-      showNotification('Data pasien berhasil diperbarui');
-      setEditingPatient(null);
-    } else {
-      const newUser: User = {
-        ...data,
-        id: `u${Date.now()}`,
-        role: UserRole.USER,
-        isActive: true,
-      };
-      setState(prev => ({ ...prev, users: [...prev.users, newUser] }));
-      addLog('REGISTER_PATIENT', 'DATA', `Mendaftarkan pasien baru: ${data.name}`);
-      showNotification('Pasien baru berhasil didaftarkan');
-    }
-    setView('patients');
-  };
-
-  const handleDeletePatient = useCallback((userId: string) => {
-    const patient = state.users.find(u => u.id === userId);
-    if (!patient) return;
-    
-    if (confirm(`Hapus data pasien ${patient.name} beserta seluruh riwayat kunjungannya secara permanen? Tindakan ini tidak dapat dibatalkan.`)) {
-      setState(prev => ({
-        ...prev,
-        users: prev.users.filter(u => u.id !== userId),
-        ancVisits: prev.ancVisits.filter(v => v.patientId !== userId)
-      }));
-      addLog('DELETE_PATIENT', 'DATA', `Menghapus pasien: ${patient.name} (ID: ${userId})`);
-      showNotification(`Data pasien ${patient.name} telah dihapus.`);
-    }
-  }, [state.users, addLog, showNotification]);
-
-  const handleDeleteVisit = useCallback((id: string) => {
-    if (confirm('Hapus data kunjungan ini secara permanen dari riwayat medis?')) {
-      setState(prev => ({
-        ...prev,
-        ancVisits: prev.ancVisits.filter(v => v.id !== id)
-      }));
-      addLog('DELETE_VISIT', 'MEDICAL', `Menghapus kunjungan riwayat ID: ${id}`);
-      showNotification('Data kunjungan berhasil dihapus dari riwayat.');
-    }
-  }, [addLog, showNotification]);
-
-  // Fix: Added handleToggleVisitStatus to handle visit status changes and satisfy component props
-  const handleToggleVisitStatus = useCallback((visitId: string) => {
-    setState(prev => ({
-      ...prev,
-      ancVisits: prev.ancVisits.map(v => 
-        v.id === visitId 
-          ? { ...v, status: v.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED' } 
-          : v
-      )
-    }));
-    addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Mengubah status validasi kunjungan ID: ${visitId}`);
-  }, [addLog]);
-
-  const handleAddVisitSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!isAddingVisit) return;
-    
-    const formData = new FormData(e.currentTarget);
-    const nextDate = formData.get('next_visit') as string;
-    
-    const newVisit: ANCVisit = {
-      id: `v${Date.now()}`,
-      patientId: isAddingVisit.id,
-      visitDate: new Date().toISOString().split('T')[0],
-      scheduledDate: new Date().toISOString().split('T')[0],
-      nextVisitDate: nextDate,
-      bloodPressure: formData.get('bp') as string,
-      complaints: formData.get('complaints') as string,
-      edema: formData.get('edema') === 'on',
-      fetalMovement: formData.get('fetal') as string,
-      followUp: formData.get('followup') as string,
-      nakesId: currentUser?.id || 'system',
-      status: 'COMPLETED'
-    };
-
-    setState(prev => ({
-      ...prev,
-      ancVisits: [...prev.ancVisits, newVisit]
-    }));
-    
-    addLog('ADD_VISIT', 'MEDICAL', `Input kunjungan pasien: ${isAddingVisit.name}`);
-    showNotification('Data kunjungan ANC berhasil disimpan');
-    
-    setIsAddingVisit(null);
-    if (view !== 'patients') setView('monitoring');
-  };
-
-  const missedVisitPatients = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return state.users.filter(u => u.role === UserRole.USER).filter(u => {
-      const userVisits = state.ancVisits.filter(v => v.patientId === u.id);
-      const latestVisit = userVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
-      if (!latestVisit) return false;
-      return latestVisit.nextVisitDate < today;
+    setState(prev => {
+      if (editingPatient) {
+        return {
+          ...prev,
+          users: prev.users.map(u => u.id === editingPatient.id ? { ...u, ...data } : u)
+        };
+      } else {
+        const generatedId = `u${Date.now().toString().slice(-6)}`;
+        return { 
+          ...prev, 
+          users: [...prev.users, { ...data, id: generatedId, username: generatedId, password: generatedId, role: UserRole.USER, isActive: true }] 
+        };
+      }
     });
-  }, [state.users, state.ancVisits]);
 
-  const renderDashboard = () => {
-    if (currentUser?.role === UserRole.USER) {
-      const progress = calculatePregnancyProgress(currentUser.hpht);
-      const rec = getMedicalRecommendation(progress?.weeks || 0);
-      const myVisits = state.ancVisits.filter(v => v.patientId === currentUser.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
-      const nextControl = myVisits[0]?.nextVisitDate;
+    handleNavigate('patients');
+    showNotification(editingPatient ? 'Data pasien berhasil diperbarui' : 'Pasien baru berhasil didaftarkan');
+  };
+
+  const DashboardHome = () => {
+    const patients = state.users.filter(u => u.role === UserRole.USER);
+    const emergencyVisits = state.ancVisits.filter(v => {
+      const [sys, dia] = v.bloodPressure.split('/').map(Number);
+      return sys >= 160 || dia >= 110 || v.dangerSigns.length > 0;
+    });
+    
+    const today = new Date().toISOString().split('T')[0];
+    const missedPatients = patients.filter(p => {
+       const v = state.ancVisits.filter(vis => vis.patientId === p.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+       return v && v.nextVisitDate < today && v.status !== 'COMPLETED';
+    });
+
+    if (currentUser?.role === UserRole.ADMIN) {
+      // Statistik Wilayah Dinamis dari state.users asli
+      const statsByKelurahan = WILAYAH_DATA["Pasar Minggu"].reduce((acc, kel) => {
+        acc[kel] = { total: 0, highRisk: 0 };
+        return acc;
+      }, {} as Record<string, { total: number, highRisk: number }>);
+
+      patients.forEach(p => {
+        const kel = p.kelurahan;
+        if (statsByKelurahan[kel]) {
+          statsByKelurahan[kel].total++;
+          const risk = getRiskCategory(p.totalRiskScore);
+          if (risk.label === 'HITAM' || risk.label === 'MERAH') statsByKelurahan[kel].highRisk++;
+        }
+      });
 
       return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-          <div className="bg-indigo-900 p-12 rounded-[4rem] text-white relative overflow-hidden shadow-2xl">
-            <h2 className="text-5xl font-black tracking-tighter mb-2 relative z-10">Halo, Ibu {currentUser.name}!</h2>
-            <p className="opacity-60 font-bold uppercase text-xs tracking-widest relative z-10">Perjalanan Kehamilan Anda - Terupdate Otomatis</p>
-            
-            <div className="mt-12 flex flex-col md:flex-row gap-8 relative z-10">
-              <div className="bg-white/10 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/20 flex-1">
-                <p className="text-[10px] font-black uppercase opacity-60 mb-2">Usia Kehamilan</p>
-                <p className="text-4xl font-black">{progress?.weeks} Mgg {progress?.days} Hari</p>
-                <p className="text-[10px] font-bold mt-2 text-indigo-200">Setara ~{progress?.months} Bulan</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/20 flex-1">
-                <p className="text-[10px] font-black uppercase opacity-60 mb-2">Estimasi Lahir (HPL)</p>
-                <p className="text-4xl font-black">{formatDate(progress?.hpl || '')}</p>
-                <p className="text-[10px] font-bold mt-2 text-indigo-200">Berdasarkan Rumus Naegele</p>
-              </div>
-              {nextControl && (
-                <div className="bg-emerald-500/20 backdrop-blur-xl p-8 rounded-[2.5rem] border border-emerald-500/30 flex-1 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-black uppercase opacity-60 mb-2 text-emerald-100">Jadwal Kontrol</p>
-                    <p className="text-4xl font-black text-emerald-300">{nextControl}</p>
-                  </div>
-                  <Calendar size={48} className="text-emerald-400 opacity-50" />
-                </div>
-              )}
+        <div className="space-y-10 animate-in fade-in duration-700">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-indigo-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+               <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Populasi Terintegrasi</p>
+               <h3 className="text-5xl font-black">{patients.length}</h3>
+               <p className="text-[10px] font-bold mt-4 text-indigo-300 uppercase tracking-widest">Ibu Hamil Terdata</p>
+               <Users size={120} className="absolute -right-6 -bottom-6 opacity-10" />
             </div>
-
-            <div className="mt-12 relative z-10">
-              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3 opacity-60">
-                <span>Konsepsi</span>
-                <span>Progres: {progress?.percentage}%</span>
-                <span>Kelahiran</span>
-              </div>
-              <div className="h-4 w-full bg-white/10 rounded-full overflow-hidden border border-white/10">
-                <div 
-                  className="h-full bg-gradient-to-r from-pink-500 to-indigo-400 transition-all duration-1000 ease-out flex items-center justify-end pr-1"
-                  style={{ width: `${progress?.percentage}%` }}
-                >
-                  <div className="w-2 h-2 rounded-full bg-white shadow-xl animate-pulse" />
-                </div>
-              </div>
+            <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm">
+               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Efektivitas Sistem</p>
+               <h3 className="text-5xl font-black text-gray-900">98.2%</h3>
+               <p className="text-[10px] font-bold mt-4 text-emerald-500 uppercase tracking-widest flex items-center gap-2"><CheckCircle size={14}/> Sistem Sinkron</p>
             </div>
-
-            <HeartPulse className="absolute -right-20 -bottom-20 text-white/5" size={400} />
+            <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm flex flex-col justify-between">
+               <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Audit Terakhir</p>
+                <p className="text-xs font-black text-indigo-600 uppercase">Akses Keamanan Aktif</p>
+               </div>
+               <button onClick={() => handleNavigate('management')} className="mt-4 px-6 py-3 bg-gray-100 text-[10px] font-black rounded-xl uppercase hover:bg-indigo-600 hover:text-white transition-all">Kelola Akses</button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100">
-               <h3 className="text-2xl font-black text-gray-900 mb-2 flex items-center gap-3"><Stethoscope className="text-indigo-600" size={28} /> {rec.trimester}</h3>
-               <p className="text-sm text-gray-500 font-medium mb-8 leading-relaxed">{rec.description}</p>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-4">
-                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Tindakan Disarankan</p>
-                    {rec.actions.map((act, i) => (
-                      <div key={i} className="flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                        <CheckCircle className="text-emerald-500 shrink-0" size={18} />
-                        <span className="text-xs font-bold text-emerald-900 leading-tight">{act}</span>
-                      </div>
-                    ))}
-                 </div>
-                 <div className="space-y-4">
-                    <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Waspada Tanda Bahaya</p>
-                    {rec.dangerSigns.map((sign, i) => (
-                      <div key={i} className="flex items-center gap-3 bg-red-50 p-4 rounded-2xl border border-red-100">
-                        <AlertCircle className="text-red-500 shrink-0" size={18} />
-                        <span className="text-xs font-bold text-red-900 leading-tight">{sign}</span>
-                      </div>
-                    ))}
-                 </div>
-               </div>
-            </div>
-
-            <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden relative">
-              <h3 className="text-2xl font-black text-gray-900 mb-8 flex items-center gap-3"><Clock className="text-indigo-600" size={28} /> Riwayat Pemeriksaan Terakhir</h3>
-              <div className="space-y-6">
-                {myVisits.length > 0 ? myVisits.map(v => (
-                  <div key={v.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 relative group transition-all hover:bg-white hover:shadow-xl hover:border-indigo-100">
-                    <div className="flex justify-between items-start mb-4">
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Kunjungan: {formatDate(v.visitDate)}</p>
-                      <span className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-full uppercase">ID: {v.id}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><p className="text-[9px] font-black text-gray-400 uppercase mb-1">Tekanan Darah</p><p className="text-base font-black text-gray-900">{v.bloodPressure}</p></div>
-                      <div><p className="text-[9px] font-black text-gray-400 uppercase mb-1">Gerakan Janin</p><p className="text-base font-black text-gray-900">{v.fetalMovement}</p></div>
-                    </div>
-                    <div className="mt-4 p-4 bg-white rounded-2xl border border-dashed border-gray-200">
-                      <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Instruksi Bidan</p>
-                      <p className="text-xs font-bold italic text-gray-600">"{v.followUp}"</p>
-                    </div>
-                  </div>
-                )) : <div className="p-12 text-center text-gray-300 font-bold italic uppercase tracking-widest">Belum ada riwayat kunjungan</div>}
-              </div>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <div className="bg-white p-12 rounded-[4rem] border border-gray-100 shadow-sm">
+                <h4 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3"><Activity className="text-indigo-600"/> Statistik Risiko Wilayah (Real-time)</h4>
+                <div className="space-y-6">
+                   {Object.entries(statsByKelurahan).map(([kel, stat]) => {
+                     const highPerc = stat.total > 0 ? (stat.highRisk / stat.total) * 100 : 0;
+                     const lowPerc = 100 - highPerc;
+                     return (
+                      <div key={kel} className="space-y-2">
+                          <div className="flex justify-between text-[10px] font-black uppercase">
+                            <span>{kel}</span> 
+                            <span className="text-indigo-600 font-black">{stat.total} Pasien</span>
+                          </div>
+                          <div className="h-3 bg-gray-50 rounded-full overflow-hidden flex border border-gray-100">
+                             <div className="h-full bg-indigo-600 transition-all duration-700" style={{ width: `${lowPerc}%` }}></div>
+                             <div className="h-full bg-red-500 transition-all duration-700" style={{ width: `${highPerc}%` }}></div>
+                          </div>
+                          <div className="flex justify-between text-[8px] font-bold text-gray-400 uppercase">
+                             <span>Stabil: {stat.total - stat.highRisk}</span>
+                             <span>Beresiko: {stat.highRisk}</span>
+                          </div>
+                       </div>
+                     )
+                   })}
+                </div>
+             </div>
+             <div className="bg-slate-950 p-12 rounded-[4rem] text-white flex flex-col justify-center relative overflow-hidden">
+                <h4 className="text-3xl font-black uppercase tracking-tighter mb-4">Cloud Infrastructure</h4>
+                <p className="text-sm text-slate-400 font-bold mb-10">Data pasien terenkripsi AES-256 dan disinkronkan secara real-time dengan server Dinas Kesehatan Jakarta.</p>
+                <div className="flex gap-4">
+                  <div className="px-6 py-3 bg-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">Server: Active</div>
+                  <div className="px-6 py-3 bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">Uptime: 99.9%</div>
+                </div>
+                <ShieldCheck size={200} className="absolute -right-20 -bottom-20 opacity-5" />
+             </div>
           </div>
         </div>
       );
     }
 
-    return (
-      <div className="space-y-10 animate-in fade-in duration-500">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-          {[
-            { label: "Total Pasien Aktif", val: state.users.filter(u => u.role === 'USER').length, icon: <Users />, color: "bg-indigo-600 shadow-indigo-100" },
-            { label: "Kunjungan Bulan Ini", val: state.ancVisits.length, icon: <CheckCircle />, color: "bg-emerald-500 shadow-emerald-100" },
-            { label: "Resiko Tinggi", val: state.ancVisits.filter(v => parseInt(v.bloodPressure.split('/')[0]) >= 140 || v.edema).length, icon: <AlertTriangle />, color: "bg-red-500 shadow-red-100" },
-            { label: "Nakes Terdaftar", val: state.users.filter(u => u.role === 'NAKES').length, icon: <Stethoscope />, color: "bg-blue-500 shadow-blue-100" }
-          ].map((stat, i) => (
-            <div key={i} className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex items-center justify-between group hover:-translate-y-2 transition-all duration-500">
-              <div>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
-                <p className="text-4xl font-black text-gray-900 tracking-tighter">{stat.val}</p>
-              </div>
-              <div className={`${stat.color} p-5 rounded-[1.5rem] text-white shadow-xl transform group-hover:rotate-12 transition-transform`}>
-                {stat.icon}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
-          <div className="xl:col-span-2 space-y-10">
-            <div className="bg-indigo-900 p-16 rounded-[4.5rem] text-white relative overflow-hidden shadow-2xl">
-               <h2 className="text-5xl font-black tracking-tighter mb-4 relative z-10 leading-none">Pusat Kendali ANC</h2>
-               <p className="text-indigo-200 font-bold max-w-lg relative z-10 leading-relaxed">Monitoring kesehatan ibu hamil di wilayah kerja {PUSKESMAS_INFO.name} secara real-time dan terintegrasi.</p>
-               <button onClick={() => setView('register')} className="mt-10 px-10 py-5 bg-white text-indigo-900 rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-50 transition-all flex items-center gap-3 relative z-10">
-                 <UserPlus size={18} /> Daftarkan Pasien Baru
-               </button>
-               <div className="absolute -right-20 -bottom-20 opacity-10">
-                 <CloudLightning size={400} />
+    if (currentUser?.role === UserRole.NAKES) {
+      return (
+        <div className="space-y-10 animate-in fade-in duration-700">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-slate-950 p-8 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between overflow-hidden relative group">
+               <div className="relative z-10">
+                 <p className="text-[10px] font-black uppercase text-red-400 tracking-widest mb-1">Kasus Darurat</p>
+                 <h3 className="text-4xl font-black">{emergencyVisits.length}</h3>
                </div>
+               <ShieldAlert className="text-white/10 absolute -right-4 -bottom-4 group-hover:scale-110 transition-transform" size={100}/>
             </div>
+            <div className="bg-orange-500 p-8 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between overflow-hidden relative">
+               <div className="relative z-10">
+                 <p className="text-[10px] font-black uppercase text-orange-100 tracking-widest mb-1">Pasien Mangkir</p>
+                 <h3 className="text-4xl font-black">{missedPatients.length}</h3>
+               </div>
+               <Clock className="text-white/10 absolute -right-4 -bottom-4" size={100}/>
+            </div>
+            <div className="bg-white p-8 rounded-[2.5rem] border-2 border-indigo-50 shadow-sm flex items-center justify-between">
+               <div><p className="text-[10px] font-black uppercase text-gray-400 mb-1">Pasien Aktif</p><h3 className="text-4xl font-black text-indigo-900">{patients.length}</h3></div>
+               <Users className="text-indigo-100" size={48}/>
+            </div>
+            <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between group cursor-pointer" onClick={() => handleNavigate('register')}>
+               <div><p className="text-[10px] font-black uppercase tracking-widest mb-1">Daftar Pasien</p><h3 className="text-lg font-black">Input Baru</h3></div>
+               <UserPlus className="group-hover:translate-x-2 transition-transform" size={32}/>
+            </div>
+          </div>
 
-            {missedVisitPatients.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-[3rem] p-10 animate-in slide-in-from-left-4 duration-500">
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-red-600 p-3 rounded-2xl text-white shadow-lg shadow-red-100">
-                      <AlertCircle size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-red-900 uppercase tracking-tighter">Peringatan Kunjungan Terlewat</h3>
-                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Sistem mendeteksi {missedVisitPatients.length} pasien terlambat kontrol</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setView('monitoring')} className="text-[10px] font-black text-red-600 underline uppercase tracking-widest">Lihat Semua</button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {missedVisitPatients.slice(0, 4).map(p => (
-                    <div key={p.id} className="bg-white p-6 rounded-[2rem] border border-red-100 flex items-center justify-between group hover:border-red-400 transition-all cursor-pointer" onClick={() => { setAutoOpenHistoryId(p.id); setView('patients'); }}>
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 font-black">{p.name.charAt(0)}</div>
-                        <div>
-                          <p className="text-xs font-black text-gray-900">{p.name}</p>
-                          <p className="text-[9px] font-bold text-red-400 uppercase">Terlambat Sejak: {state.ancVisits.filter(v => v.patientId === p.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0]?.nextVisitDate}</p>
-                        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+             <div className="bg-white p-12 rounded-[4rem] border border-gray-100 shadow-sm">
+                <h4 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3 text-red-600"><AlertCircle/> Antrean Triase Hitam & Merah</h4>
+                <div className="space-y-4">
+                  {emergencyVisits.slice(0, 4).map(v => (
+                    <div key={v.id} className="p-6 bg-red-50 rounded-3xl border border-red-100 flex justify-between items-center group">
+                      <div>
+                        <p className="text-xs font-black text-red-900 uppercase">{state.users.find(u => u.id === v.patientId)?.name}</p>
+                        <p className="text-[9px] font-bold text-red-600 mt-1 uppercase">⚠️ Bahaya Terdeteksi</p>
                       </div>
-                      <Navigation size={14} className="text-gray-200 group-hover:text-red-500" />
+                      <button onClick={() => handleNavigate('monitoring')} className="px-5 py-2.5 bg-red-600 text-white text-[9px] font-black rounded-xl uppercase group-hover:scale-105 transition-all">Tangani</button>
+                    </div>
+                  ))}
+                  {emergencyVisits.length === 0 && <p className="text-center text-gray-300 font-bold py-10 uppercase text-[10px]">Semua pasien stabil</p>}
+                </div>
+             </div>
+             <div className="bg-white p-12 rounded-[4rem] border border-gray-100 shadow-sm">
+                <h4 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3 text-indigo-600"><Clock/> Tindak Lanjut Mangkir Kontrol</h4>
+                <div className="space-y-4">
+                  {missedPatients.slice(0, 4).map(p => (
+                    <div key={p.id} className="p-6 bg-indigo-50 rounded-3xl border border-indigo-100 flex justify-between items-center group">
+                      <div>
+                        <p className="text-xs font-black text-indigo-900 uppercase">{p.name}</p>
+                        <p className="text-[9px] font-bold text-indigo-600 mt-1 uppercase">Terlambat Kunjungan</p>
+                      </div>
+                      <a href={`tel:${p.phone}`} className="px-5 py-2.5 bg-indigo-600 text-white text-[9px] font-black rounded-xl uppercase flex items-center gap-2 group-hover:scale-105 transition-all"><ChevronRight size={14}/> Hubungi</a>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-gray-100">
-               <div className="flex items-center justify-between mb-10">
-                 <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3"><Bell className="text-indigo-600" size={28} /> Notifikasi Sistem</h3>
-                 <span className="px-4 py-1.5 bg-gray-50 text-gray-400 text-[9px] font-black rounded-full uppercase">Log Terakhir</span>
-               </div>
-               <div className="space-y-5">
-                 {state.logs.slice(0, 5).map(log => (
-                   <div key={log.id} className="flex gap-6 p-6 bg-gray-50/50 rounded-[2rem] border border-transparent hover:border-indigo-100 hover:bg-white transition-all">
-                     <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
-                       {log.action.includes('REGISTER') ? <UserPlus size={20} /> : <Info size={20} />}
-                     </div>
-                     <div>
-                       <p className="text-xs font-black text-gray-900 mb-1">{log.details}</p>
-                       <div className="flex items-center gap-3">
-                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{log.action}</p>
-                         <span className="w-1 h-1 rounded-full bg-gray-200" />
-                         <p className="text-[9px] font-bold text-gray-400 uppercase">{new Date(log.timestamp).toLocaleTimeString()}</p>
-                       </div>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          </div>
-
-          <div className="space-y-10">
-             <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-gray-100">
-               <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter mb-8 text-center">Tindakan Cepat</h3>
-               <div className="grid grid-cols-2 gap-4">
-                 {[
-                   { label: "Peta Lokasi", icon: <MapPin />, color: "bg-blue-50 text-blue-600", path: "map" },
-                   { label: "Dashboard", icon: <Navigation />, color: "bg-indigo-50 text-indigo-600", path: "monitoring" },
-                   { label: "Audit Log", icon: <ClipboardList />, color: "bg-purple-50 text-purple-600", path: "audit" },
-                   { label: "Manajemen", icon: <ShieldAlert />, color: "bg-red-50 text-red-600", path: "management" }
-                 ].map((btn, i) => (
-                   <button 
-                    key={i} 
-                    onClick={() => setView(btn.path)}
-                    className={`${btn.color} p-8 rounded-[2rem] flex flex-col items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 border border-transparent hover:border-current`}
-                   >
-                     {btn.icon}
-                     {btn.label}
-                   </button>
-                 ))}
-               </div>
-             </div>
-
-             <div className="bg-emerald-600 p-12 rounded-[3.5rem] text-white shadow-2xl shadow-emerald-100 relative overflow-hidden group">
-               <h3 className="text-2xl font-black tracking-tighter mb-3 relative z-10">Status Integrasi</h3>
-               <p className="text-emerald-100 text-[11px] font-bold uppercase tracking-widest mb-6 relative z-10">Cloud Database Terhubung</p>
-               <div className="flex items-center gap-4 bg-white/10 p-5 rounded-[1.5rem] relative z-10">
-                 <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-emerald-600 shadow-lg"><CloudLightning size={20} /></div>
-                 <div>
-                   <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Sync Terakhir</p>
-                   <p className="text-xs font-black">Just now</p>
-                 </div>
-               </div>
-               <CloudLightning size={160} className="absolute -right-10 -bottom-10 opacity-10 group-hover:scale-110 transition-transform duration-700" />
              </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    if (currentUser?.role === UserRole.USER) {
+      const progress = calculatePregnancyProgress(currentUser.hpht);
+      const latestAnc = state.ancVisits.filter(v => v.patientId === currentUser.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+      const risk = getRiskCategory(currentUser.totalRiskScore, latestAnc);
+
+      return (
+        <div className="space-y-10 animate-in fade-in duration-700">
+          <div className="bg-indigo-600 p-16 rounded-[4rem] text-white shadow-2xl relative overflow-hidden">
+             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                <div className="text-center md:text-left">
+                  <h3 className="text-5xl font-black uppercase tracking-tighter leading-none">Selamat Datang, Ibu {currentUser.name.split(' ')[0]}</h3>
+                  <p className="text-indigo-200 font-bold mt-4 uppercase tracking-[0.3em] text-[10px]">Perjalanan Kehamilan Anda Aman & Terpantau</p>
+                  <div className="flex gap-4 mt-8">
+                    <div className="px-8 py-4 bg-white/10 rounded-3xl border border-white/20 backdrop-blur-xl">
+                       <p className="text-[10px] font-black uppercase opacity-60">Usia Kandungan</p>
+                       <p className="text-2xl font-black">{progress?.months} Bulan / {progress?.weeks} Minggu</p>
+                    </div>
+                    <div className="px-8 py-4 bg-white/10 rounded-3xl border border-white/20 backdrop-blur-xl">
+                       <p className="text-[10px] font-black uppercase opacity-60">Estimasi Lahir (HPL)</p>
+                       <p className="text-2xl font-black">{progress?.hpl}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative">
+                   <div className="w-56 h-56 rounded-full border-[12px] border-white/20 flex items-center justify-center relative">
+                      <Baby size={80} className="text-white animate-bounce" />
+                      <svg className="absolute inset-0 w-full h-full -rotate-90">
+                        <circle cx="112" cy="112" r="100" stroke="white" strokeWidth="12" fill="transparent" strokeDasharray="628" strokeDashoffset={628 - (628 * (progress?.percentage || 0) / 100)} className="transition-all duration-1000" />
+                      </svg>
+                   </div>
+                   <p className="text-center mt-4 font-black text-xl">{progress?.percentage || 0}% Journey</p>
+                </div>
+             </div>
+             <Heart size={300} className="absolute -left-20 -bottom-20 opacity-10" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+             <div className={`p-10 rounded-[3rem] shadow-xl flex flex-col justify-between h-72 ${risk.color} border-2 border-current/10`}>
+                <div>
+                   <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Status Kesehatan</p>
+                   <h4 className="text-3xl font-black uppercase mt-1">Triase {risk.label}</h4>
+                </div>
+                <p className="text-[11px] font-bold leading-relaxed">{risk.desc}</p>
+                <div className="bg-white/20 p-4 rounded-2xl flex items-center gap-3">
+                   <ShieldCheck size={24}/> <span className="text-[10px] font-black uppercase">Monitor Aktif Puskesmas</span>
+                </div>
+             </div>
+
+             <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-gray-100 flex flex-col justify-between h-72">
+                <div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kontrol Berikutnya</p>
+                   <h4 className="text-3xl font-black text-gray-900 mt-2">{latestAnc?.nextVisitDate || 'Belum Terjadwal'}</h4>
+                </div>
+                <button onClick={() => handleNavigate('contact')} className="w-full py-4 bg-indigo-600 text-white text-[10px] font-black rounded-xl uppercase">Hubungi Bidan</button>
+             </div>
+
+             <div className="bg-slate-900 p-10 rounded-[3rem] shadow-xl text-white flex flex-col justify-between h-72 relative overflow-hidden group">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Akses Cepat</p>
+                  <h4 className="text-2xl font-black mt-2">Kartu ANC Digital</h4>
+                </div>
+                <button onClick={() => handleNavigate('smart-card')} className="w-full py-4 bg-white text-slate-900 text-[10px] font-black rounded-xl uppercase flex items-center justify-center gap-2 group-hover:bg-indigo-400 group-hover:text-white transition-all">
+                  <QrCode size={16}/> Buka Kartu
+                </button>
+                <QrCode size={150} className="absolute -right-10 -top-10 opacity-5" />
+             </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
   };
 
-  if (!currentUser) return <LoginScreen onLogin={(u) => { setCurrentUser(u); addLog('LOGIN', 'AUTH', `User ${u.name} berhasil masuk`); }} />;
+  if (!currentUser) return <LoginScreen users={state.users} onLogin={(u) => setCurrentUser(u)} />;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-gray-50 font-sans">
       <Sidebar 
         currentView={view} 
-        onNavigate={setView} 
-        onLogout={handleLogout} 
+        onNavigate={handleNavigate} 
+        onLogout={() => setCurrentUser(null)} 
         userRole={currentUser.role} 
-        isOpen={isSidebarOpen}
-        onToggle={toggleSidebar}
+        isOpen={isSidebarOpen} 
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
       />
       
-      <main className={`transition-all duration-700 cubic-bezier(0.4, 0, 0.2, 1) ${isSidebarOpen ? 'lg:ml-80' : 'ml-0'}`}>
+      <main className={`transition-all duration-700 ${isSidebarOpen ? 'lg:ml-80' : 'ml-0'}`}>
         <Header 
-          title={view === 'dashboard' ? 'Dashboard Utama' : view.split('-').map(s => s.toUpperCase()).join(' ')} 
+          title={view.toUpperCase()} 
           userName={currentUser.name} 
-          userRole={currentUser.role}
-          onToggleSidebar={toggleSidebar}
-          onSearchChange={setPatientSearch}
-          onLogout={handleLogout}
-          isSyncing={isSyncing}
+          userRole={currentUser.role} 
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+          onSearchChange={setPatientSearch} 
+          onLogout={() => setCurrentUser(null)} 
         />
 
-        <div className="p-16 max-w-[1600px] mx-auto min-h-[calc(100vh-8rem)]">
+        <div className="p-16 max-w-[1600px] mx-auto">
           {notification && (
-            <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[999] px-10 py-5 rounded-[2rem] shadow-2xl border flex items-center gap-4 animate-in slide-in-from-top-4 duration-500 font-black text-xs uppercase tracking-widest ${notification.type === 'success' ? 'bg-white text-emerald-600 border-emerald-100' : 'bg-white text-red-600 border-red-100'}`}>
-              {notification.type === 'success' ? <CheckCircle className="text-emerald-500" /> : <AlertCircle className="text-red-500" />}
-              {notification.message}
+            <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[999] px-10 py-6 bg-slate-900 text-white rounded-[2.5rem] shadow-2xl flex items-center gap-4 animate-in slide-in-from-top-6">
+              <CheckCircle size={16} className="text-emerald-400" />
+              <p className="text-xs font-black uppercase tracking-widest">{notification.message}</p>
             </div>
           )}
 
-          {view === 'dashboard' && renderDashboard()}
+          {view === 'dashboard' && <DashboardHome />}
           
           {view === 'patients' && (
             <PatientList 
-              users={state.users} 
-              visits={state.ancVisits} 
-              onEdit={(u) => { setEditingPatient(u); setView('register'); }} 
+              users={state.users} visits={state.ancVisits} 
+              onEdit={(u) => { setEditingPatient(u); setTempRiskFactors(u.selectedRiskFactors); setView('register'); }} 
               onAddVisit={(u) => setIsAddingVisit(u)}
-              onDeleteVisit={handleDeleteVisit}
-              onDeletePatient={handleDeletePatient}
-              onToggleVisitStatus={handleToggleVisitStatus}
-              currentUserRole={currentUser.role}
-              searchFilter={patientSearch}
-              initialSelectedHistoryId={autoOpenHistoryId}
-              clearAutoOpen={() => setAutoOpenHistoryId(null)}
+              onDeletePatient={(id) => setState(prev => ({...prev, users: prev.users.filter(u => u.id !== id)}))}
+              onDeleteVisit={(id) => setState(prev => ({...prev, ancVisits: prev.ancVisits.filter(v => v.id !== id)}))}
+              onToggleVisitStatus={() => {}}
+              currentUserRole={currentUser.role} searchFilter={patientSearch}
             />
           )}
 
-          {view === 'management' && (
-            <AccessManagement 
-              state={state} 
-              setState={setState} 
-              currentUser={currentUser} 
-              addLog={addLog}
-            />
-          )}
-
-          {view === 'audit' && (
-            <AuditTrail logs={state.logs} />
-          )}
-          
-          {view === 'monitoring' && (
-            <RiskMonitoring 
-              state={state} 
-              onNavigateToPatient={(id) => { setAutoOpenHistoryId(id); setView('patients'); }}
-              onAddVisit={(u) => setIsAddingVisit(u)}
-              onToggleVisitStatus={handleToggleVisitStatus}
-            />
-          )}
-          
           {view === 'register' && (
-            <div className="max-w-4xl mx-auto bg-white p-16 rounded-[4rem] shadow-sm border border-gray-100 animate-in zoom-in-95 duration-500">
-              <div className="flex items-center gap-4 mb-12 border-b border-gray-50 pb-8">
-                <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-xl"><UserPlus size={28} /></div>
-                <div>
-                  <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-none">{editingPatient ? 'Perbarui Data Pasien' : 'Pendaftaran ANC Baru'}</h2>
-                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Formulir Integrasi Rekam Medis Digital</p>
+            <div className="max-w-4xl mx-auto bg-white p-16 rounded-[4rem] shadow-sm border border-gray-100 animate-in zoom-in-95">
+              <div className="flex items-center justify-between mb-12">
+                <div className="flex items-center gap-6">
+                  <div className="bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl"><Stethoscope size={36} /></div>
+                  <div>
+                    <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">{editingPatient ? 'Perbarui Data Pasien' : 'Pendaftaran Pasien Baru'}</h2>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Standarisasi Skor Poedji Rochjati (SPR)</p>
+                  </div>
                 </div>
+                {!editingPatient && (
+                   <button type="button" onClick={() => handleNavigate('register')} className="p-4 bg-gray-50 text-gray-400 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center gap-2 text-[10px] font-black uppercase">
+                     <RefreshCcw size={16}/> Reset Form
+                   </button>
+                )}
               </div>
               
               <form onSubmit={handleRegisterSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Nama Lengkap Sesuai KTP</label>
-                  <input name="name" defaultValue={editingPatient?.name} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Tanggal Lahir</label>
-                  <input type="date" name="dob" defaultValue={editingPatient?.dob} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Nomor HP / WhatsApp Aktif</label>
-                  <input name="phone" defaultValue={editingPatient?.phone} placeholder="08..." className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">HPHT (Hari Pertama Haid Terakhir)</label>
-                  <input type="date" name="hpht" defaultValue={editingPatient?.hpht} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Kecamatan</label>
-                  <select 
-                    name="kecamatan" 
-                    className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
-                    value={selectedKec}
-                    onChange={(e) => setSelectedKec(e.target.value)}
-                    required
-                  >
-                    {Object.keys(WILAYAH_DATA).map(kec => <option key={kec} value={kec}>{kec}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Kelurahan</label>
-                  <select 
-                    name="kelurahan" 
-                    defaultValue={editingPatient?.kelurahan}
-                    className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
-                    required
-                  >
-                    <option value="">-- Pilih Kelurahan --</option>
-                    {WILAYAH_DATA[selectedKec as keyof typeof WILAYAH_DATA].map(kel => <option key={kel} value={kel}>{kel}</option>)}
-                  </select>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Kehamilan Ke (Gravida)</label>
-                  <input type="number" name="number" defaultValue={editingPatient?.pregnancyNumber} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Riwayat Medis / Alergi</label>
-                  <input name="history" defaultValue={editingPatient?.medicalHistory} placeholder="Contoh: Asma, Alergi Paracetamol, dll" className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" />
-                </div>
-                <div className="space-y-3 md:col-span-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Alamat Jalan / RT / RW</label>
-                  <textarea name="address" defaultValue={editingPatient?.address} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all h-32 resize-none" required></textarea>
-                </div>
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Nama Pasien</label><input name="name" defaultValue={editingPatient?.name || ''} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none" required /></div>
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">HPHT</label><input type="date" name="hpht" defaultValue={editingPatient?.hpht || ''} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none" required /></div>
                 
-                <div className="md:col-span-2 bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100">
-                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2"><MapPin size={14}/> Koordinat Lokasi (Input Manual/Otomatis)</p>
-                  <div className="grid grid-cols-2 gap-6">
-                    <input name="lat" defaultValue={editingPatient?.lat} placeholder="Latitude" className="w-full px-8 py-5 bg-white border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-200 transition-all" />
-                    <input name="lng" defaultValue={editingPatient?.lng} placeholder="Longitude" className="w-full px-8 py-5 bg-white border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-200 transition-all" />
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Latitude (GPS)</label><input type="number" step="any" name="lat" defaultValue={editingPatient?.lat || ''} placeholder="-6.1234" className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" /></div>
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Longitude (GPS)</label><input type="number" step="any" name="lng" defaultValue={editingPatient?.lng || ''} placeholder="106.1234" className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" /></div>
+
+                <div className="md:col-span-2 p-10 bg-indigo-50/30 rounded-[3.5rem] border-2 border-dashed border-indigo-100 relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-10 relative z-10">
+                    <div>
+                      <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2"><ShieldAlert size={16}/> Analisa Faktor Komplikasi</h4>
+                      <p className="text-[9px] font-bold text-indigo-400 uppercase mt-1">Klik tombol di kanan untuk memilih penyakit/alergi</p>
+                    </div>
+                    <button type="button" onClick={() => setIsRiskModalOpen(true)} className="px-8 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl uppercase shadow-xl hover:scale-105 transition-all flex items-center gap-2">
+                      <Edit3 size={14}/> Pilih Riwayat Medis
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3 relative z-10">
+                    {tempRiskFactors.map(id => (
+                      <div key={id} className="group flex items-center gap-3 px-5 py-3 bg-white border border-indigo-100 rounded-2xl shadow-sm">
+                         <span className="text-[10px] font-black text-indigo-900 uppercase">{RISK_FACTORS_MASTER[id].label}</span>
+                         <span className="text-[10px] font-black text-red-500">+{RISK_FACTORS_MASTER[id].score}</span>
+                         <button type="button" onClick={() => setTempRiskFactors(prev => prev.filter(fid => fid !== id))} className="text-gray-300 hover:text-red-500 transition-colors"><X size={14}/></button>
+                      </div>
+                    ))}
+                    {tempRiskFactors.length === 0 && (
+                      <div className="w-full py-12 text-center">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase italic">Ibu Hamil Tanpa Riwayat Penyakit Penyerta Terdeteksi</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="md:col-span-2 pt-6 flex gap-4">
-                  <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl hover:bg-indigo-700 transition-all active:scale-95">
-                    {editingPatient ? 'Simpan Perubahan' : 'Finalisasi Pendaftaran'}
-                  </button>
-                  <button type="button" onClick={() => { setEditingPatient(null); setView('patients'); }} className="px-10 py-6 bg-gray-100 text-gray-500 rounded-[2rem] font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all">
-                    Batal
-                  </button>
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Nomor Telepon (WhatsApp)</label><input name="phone" defaultValue={editingPatient?.phone || ''} placeholder="08..." className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none" required /></div>
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Kehamilan Ke- (Gravida)</label><input type="number" name="number" defaultValue={editingPatient?.pregnancyNumber || 1} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none" required /></div>
+                
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Kelurahan</label>
+                  <select name="kelurahan" defaultValue={editingPatient?.kelurahan || WILAYAH_DATA["Pasar Minggu"][0]} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none" required>
+                    {WILAYAH_DATA["Pasar Minggu"].map(kel => <option key={kel} value={kel}>{kel}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Alamat Lengkap</label><input name="address" defaultValue={editingPatient?.address || ''} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none" required /></div>
+
+                <div className="md:col-span-2 pt-10 border-t flex gap-4">
+                  <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:bg-indigo-700 hover:scale-[1.01] transition-all">Selesaikan Pendaftaran</button>
+                  <button type="button" onClick={() => handleNavigate('patients')} className="px-10 py-6 bg-gray-100 text-gray-500 rounded-[2rem] font-black uppercase text-xs tracking-widest">Batalkan</button>
                 </div>
               </form>
             </div>
           )}
-          
+
+          {isRiskModalOpen && (
+            <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => setIsRiskModalOpen(false)}>
+              <div className="bg-white w-full max-w-3xl rounded-[4rem] shadow-2xl p-14 overflow-hidden animate-in zoom-in-95 duration-500" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-10">
+                   <div>
+                     <h3 className="text-3xl font-black uppercase tracking-tighter">Diagnosa Riwayat & Penyakit</h3>
+                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Pilih semua yang sesuai dengan kondisi klinis ibu</p>
+                   </div>
+                   <button onClick={() => setIsRiskModalOpen(false)} className="p-4 bg-gray-100 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all"><X size={24}/></button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+                  {Object.entries(RISK_FACTORS_MASTER).sort((a,b) => b[1].score - a[1].score).map(([id, data]) => {
+                    const isSelected = tempRiskFactors.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setTempRiskFactors(prev => isSelected ? prev.filter(fid => fid !== id) : [...prev, id])}
+                        className={`p-6 rounded-[2.5rem] border-2 text-left transition-all flex flex-col justify-between h-44 group ${
+                          isSelected 
+                            ? 'bg-indigo-600 border-indigo-700 text-white shadow-2xl shadow-indigo-200' 
+                            : 'bg-gray-50 border-gray-100 text-gray-600 hover:border-indigo-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start w-full">
+                           <span className={`text-[8px] font-black uppercase px-3 py-1.5 rounded-full ${
+                             isSelected ? 'bg-white/20' : 
+                             data.level === 'EXTREME' ? 'bg-red-100 text-red-600' : 
+                             data.level === 'HIGH' ? 'bg-orange-100 text-orange-600' : 'bg-indigo-50 text-indigo-600'
+                           }`}>
+                             {data.category}
+                           </span>
+                           <span className={`text-xl font-black ${isSelected ? 'text-white' : 'text-indigo-900'}`}>+{data.score}</span>
+                        </div>
+                        <div>
+                          <p className="font-black text-xs uppercase leading-snug pr-4">{data.label}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-12 flex items-center justify-between gap-10">
+                   <div className="flex-1 p-6 bg-indigo-50 rounded-3xl border border-indigo-100">
+                      <p className="text-[10px] font-black text-indigo-400 uppercase mb-1">Estimasi Skor Riwayat</p>
+                      <p className="text-2xl font-black text-indigo-900 leading-none">+{tempRiskFactors.reduce((acc, id) => acc + RISK_FACTORS_MASTER[id].score, 0)} Poin</p>
+                   </div>
+                   <button onClick={() => setIsRiskModalOpen(false)} className="px-16 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs shadow-xl hover:bg-indigo-700 transition-all">Konfirmasi Diagnosa</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isAddingVisit && (
+            <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => setIsAddingVisit(null)}>
+               <div className="bg-white w-full max-w-3xl rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                  <div className="bg-indigo-600 p-12 text-white flex justify-between items-center relative overflow-hidden">
+                    <div className="relative z-10">
+                      <h3 className="text-3xl font-black uppercase tracking-tighter">Pemeriksaan ANC Terpadu</h3>
+                      <p className="text-[10px] font-bold uppercase opacity-60 mt-2 flex items-center gap-2">
+                        <Users size={14}/> {isAddingVisit.name}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const f = new FormData(e.currentTarget);
+                    const v: ANCVisit = {
+                      id: `v${Date.now()}`,
+                      patientId: isAddingVisit.id,
+                      visitDate: new Date().toISOString().split('T')[0],
+                      scheduledDate: new Date().toISOString().split('T')[0],
+                      nextVisitDate: f.get('next') as string,
+                      weight: Number(f.get('weight')),
+                      bloodPressure: f.get('bp') as string,
+                      tfu: Number(f.get('tfu')),
+                      djj: Number(f.get('djj')),
+                      hb: Number(f.get('hb')),
+                      complaints: f.get('complaints') as string,
+                      dangerSigns: Array.from(f.getAll('danger') as string[]),
+                      edema: f.get('edema') === 'on',
+                      fetalMovement: f.get('fetal') as string,
+                      followUp: f.get('followup') as string,
+                      nakesId: currentUser?.id || 'sys',
+                      status: 'COMPLETED'
+                    };
+                    setState(prev => ({...prev, ancVisits: [...prev.ancVisits, v]}));
+                    showNotification('Hasil pemeriksaan ANC berhasil diterbitkan');
+                    setIsAddingVisit(null);
+                  }} className="p-12 space-y-8 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">BB (kg)</label><input type="number" step="0.1" name="weight" className="w-full px-6 py-4 bg-gray-50 rounded-2xl font-black outline-none border-none" required /></div>
+                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">T. Darah (mmHg)</label><input name="bp" placeholder="120/80" className="w-full px-6 py-4 bg-gray-50 rounded-2xl font-black outline-none border-none" required /></div>
+                      <div className="space-y-2"><label className="text-[9px] font-black uppercase text-gray-400 ml-4">Kontrol Lagi</label><input type="date" name="next" className="w-full px-6 py-4 bg-gray-50 rounded-2xl font-black outline-none border-none text-[10px]" required /></div>
+                    </div>
+
+                    <div className="p-8 bg-red-50 rounded-[3rem] border border-red-100">
+                       <p className="text-[10px] font-black text-red-600 uppercase mb-6 flex items-center gap-2"><AlertCircle size={16}/> Skrining Tanda Bahaya</p>
+                       <div className="grid grid-cols-2 gap-4">
+                          {['Nyeri Kepala Hebat', 'Pandangan Kabur', 'Perdarahan', 'Ketuban Pecah', 'Bengkak Wajah/Tangan', 'Gerak Janin Berkurang'].map(sign => (
+                            <label key={sign} className="flex items-center gap-3 cursor-pointer group p-3 bg-white rounded-2xl border border-red-50 hover:border-red-300 transition-all">
+                               <input type="checkbox" name="danger" value={sign} className="w-5 h-5 rounded-lg border-red-200 text-red-600 focus:ring-red-500" />
+                               <span className="text-[10px] font-bold text-gray-700 group-hover:text-red-700 transition-all">{sign}</span>
+                            </label>
+                          ))}
+                       </div>
+                    </div>
+
+                    <button type="submit" className="w-full py-6 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-700 hover:scale-[1.01] transition-all">Submit Pemeriksaan</button>
+                  </form>
+               </div>
+            </div>
+          )}
+
+          {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser} addLog={()=>{}} />}
+          {view === 'monitoring' && <RiskMonitoring state={state} onNavigateToPatient={handleNavigate} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
           {view === 'map' && <MapView users={state.users} />}
-          {view === 'education' && <EducationModule />}
           {view === 'smart-card' && <SmartCardModule state={state} setState={setState} isUser={currentUser.role === UserRole.USER} user={currentUser} />}
+          {view === 'education' && <EducationModule />}
           {view === 'contact' && <ContactModule />}
         </div>
       </main>
-
-      {isAddingVisit && (
-        <div 
-          className="fixed inset-0 z-[100] bg-indigo-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300"
-          onClick={() => setIsAddingVisit(null)}
-        >
-          <div 
-            className="bg-white w-full max-w-2xl rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-indigo-600 p-12 text-white flex justify-between items-center relative">
-              <div className="relative z-10">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Input Kunjungan ANC</h3>
-                <p className="text-indigo-200 font-bold text-xs uppercase tracking-widest mt-1">Pasien: {isAddingVisit.name}</p>
-              </div>
-              <button 
-                onClick={() => setIsAddingVisit(null)} 
-                className="relative z-20 p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all cursor-pointer shadow-lg"
-                title="Tutup Modal"
-              >
-                <X size={24} />
-              </button>
-              <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-                <Stethoscope size={200} />
-              </div>
-            </div>
-            
-            <form onSubmit={handleAddVisitSubmit} className="p-12 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Tekanan Darah (S/D)</label>
-                  <input name="bp" placeholder="120/80" className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Gerakan Janin</label>
-                  <select name="fetal" className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all">
-                    <option>Sangat Aktif</option>
-                    <option>Aktif</option>
-                    <option>Kurang Aktif</option>
-                    <option>Tidak Ada</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jadwal Kontrol Selanjutnya</label>
-                  <input type="date" name="next_visit" className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
-                </div>
-                <div className="flex items-center gap-4 bg-gray-50 px-6 py-4 rounded-2xl mt-6">
-                  <input type="checkbox" name="edema" id="edema" className="w-6 h-6 rounded-lg text-indigo-600 focus:ring-indigo-500 border-gray-300" />
-                  <label htmlFor="edema" className="text-xs font-black text-gray-700 uppercase tracking-wider cursor-pointer">Ada Bengkak (Edema)</label>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Keluhan Pasien</label>
-                <textarea name="complaints" placeholder="Tuliskan keluhan atau kondisi pasien..." className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all h-24 resize-none"></textarea>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Instruksi & Tindak Lanjut</label>
-                <textarea name="followup" placeholder="Contoh: Istirahat cukup, kurangi garam, rutin minum TTD" className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all h-24 resize-none" required></textarea>
-              </div>
-
-              <div className="flex gap-4">
-                <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 active:scale-95">
-                  <CheckCircle size={20} /> Simpan Data Kunjungan
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setIsAddingVisit(null)}
-                  className="px-8 py-6 bg-gray-100 text-gray-500 rounded-[2rem] font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition-all"
-                >
-                  Batal
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

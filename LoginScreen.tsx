@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
 import { HeartPulse, User as UserIcon, Lock, AlertCircle, ShieldCheck, ChevronRight } from 'lucide-react';
-import { MOCK_USERS } from './constants';
 import { User } from './types';
 
 interface LoginScreenProps {
+  users: User[]; // Menerima daftar pengguna terbaru dari App state
   onLogin: (user: User) => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +21,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
     // Simulasi delay jaringan agar terlihat profesional
     setTimeout(() => {
-      const user = MOCK_USERS.find(
+      // Validasi terhadap daftar users dinamis (termasuk yang baru didaftarkan)
+      const user = users.find(
         u => u.username === username && u.password === password
       );
 
@@ -62,7 +63,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2 text-left">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-6">ID Pengguna</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-6">ID Pengguna / Username</label>
               <div className="relative">
                 <UserIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
                 <input 
@@ -89,6 +90,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   required
                 />
               </div>
+              <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mt-3 ml-6">
+                *Pasien: Gunakan ID unik yang tertera di kartu ANC
+              </p>
             </div>
 
             <button 
@@ -113,7 +117,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <ShieldCheck size={14} /> Terenkripsi
             </div>
             <div className="w-1.5 h-1.5 rounded-full bg-gray-200" />
-            <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest">v2.0 Stable Build</p>
+            <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest">v2.1 Persistence Build</p>
           </div>
         </div>
       </div>

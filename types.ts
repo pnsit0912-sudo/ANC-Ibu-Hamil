@@ -5,10 +5,17 @@ export enum UserRole {
   USER = 'USER'
 }
 
+export type RiskFactor = {
+  id: string;
+  label: string;
+  score: number;
+  category: 'MEDIS' | 'OBSTETRI' | 'SOSIAL';
+};
+
 export interface User {
   id: string;
-  username?: string; // ID Login
-  password?: string; // Kata Sandi Login
+  username?: string;
+  password?: string;
   name: string;
   dob: string;
   address: string;
@@ -16,10 +23,12 @@ export interface User {
   kelurahan: string;
   lat?: number;
   lng?: number;
-  hpht: string; // Hari Pertama Haid Terakhir (ISO String)
+  hpht: string;
   pregnancyMonth: number; 
   pregnancyNumber: number;
-  medicalHistory: string;
+  medicalHistory: string; // Deskripsi singkat
+  selectedRiskFactors: string[]; // ID dari faktor resiko
+  totalRiskScore: number;
   role: UserRole;
   phone: string;
   isActive: boolean;
@@ -31,8 +40,13 @@ export interface ANCVisit {
   visitDate: string;
   scheduledDate: string;
   nextVisitDate: string;
+  weight: number; // kg
   bloodPressure: string;
+  tfu: number; // cm
+  djj: number; // bpm
+  hb: number; // g/dL
   complaints: string;
+  dangerSigns: string[]; // Checkbox tanda bahaya
   edema: boolean;
   fetalMovement: string;
   followUp: string;
@@ -58,6 +72,9 @@ export interface AppState {
   logs: SystemLog[];
 }
 
+/**
+ * Added missing EducationContent interface to fix import error in constants.tsx
+ */
 export interface EducationContent {
   id: string;
   title: string;
