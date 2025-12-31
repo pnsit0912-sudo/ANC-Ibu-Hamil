@@ -450,13 +450,20 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="relative z-10 text-right">
+              <div className="relative z-10 text-right pr-12">
                 <div className="inline-flex flex-col items-end">
                    <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1">Skor Risiko Terpadu</span>
-                   <span className="text-5xl font-black leading-none">{patient.totalRiskScore + 2} <span className="text-sm">Pts</span></span>
+                   <span className="text-5xl font-black leading-none">{patient.totalRiskScore + baseScore} <span className="text-sm">Pts</span></span>
                 </div>
               </div>
-              <button onClick={() => setViewingPatientProfile(null)} className="absolute top-10 right-10 p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all text-white"><X size={24}/></button>
+              {/* FIXED CLOSE BUTTON: More visible, elevated z-index, larger click area */}
+              <button 
+                onClick={() => setViewingPatientProfile(null)} 
+                className="absolute top-8 right-8 z-[60] p-5 bg-black/20 hover:bg-black/40 rounded-3xl transition-all text-white backdrop-blur-md border border-white/20 cursor-pointer flex items-center justify-center group active:scale-90"
+                aria-label="Tutup Profil"
+              >
+                <X size={28} className="group-hover:rotate-90 transition-transform duration-300" />
+              </button>
            </div>
 
            <div className="flex-1 overflow-y-auto p-12 custom-scrollbar space-y-12">
@@ -546,13 +553,15 @@ export default function App() {
            </div>
 
            <div className="p-12 border-t border-gray-50 bg-gray-50/30 flex justify-end gap-4">
-              <button onClick={() => setViewingPatientProfile(null)} className="px-10 py-5 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase hover:bg-gray-50 transition-all">Tutup Profil</button>
-              <a href={`tel:${patient.phone}`} className="px-10 py-5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl shadow-indigo-100 flex items-center gap-2"><Phone size={14}/> Hubungi Ibu</a>
+              <button onClick={() => setViewingPatientProfile(null)} className="px-10 py-5 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase hover:bg-gray-50 transition-all cursor-pointer">Tutup Profil</button>
+              <a href={`tel:${patient.phone}`} className="px-10 py-5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl shadow-indigo-100 flex items-center gap-2 no-underline cursor-pointer"><Phone size={14}/> Hubungi Ibu</a>
            </div>
         </div>
       </div>
     );
   };
+
+  const baseScore = 2; // Skor dasar ANC
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
