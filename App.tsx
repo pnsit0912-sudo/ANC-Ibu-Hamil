@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { UserRole, User, AppState } from './types';
 import { MOCK_USERS, PUSKESMAS_INFO } from './constants';
 import { 
-  HeartPulse, Stethoscope, CheckCircle, AlertCircle, Users
+  HeartPulse, Stethoscope, CheckCircle, AlertCircle, Users, Menu
 } from 'lucide-react';
 
 // Impor Komponen Modular
@@ -13,7 +13,7 @@ import { MapView } from './MapView';
 import { PatientList } from './PatientList';
 import { LoginScreen } from './LoginScreen';
 import { AccessManagement } from './AccessManagement';
-import { RiskMonitoring } from './RiskMonitoring'; // Fitur Baru
+import { RiskMonitoring } from './RiskMonitoring';
 import { getMedicalRecommendation } from './utils';
 import { SmartCardModule, EducationModule, ContactModule, AccessDenied } from './FeatureModules';
 
@@ -40,6 +40,7 @@ export default function App() {
 
   // Handlers
   const handleLogout = () => { if (confirm('Keluar dari sistem?')) setCurrentUser(null); };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   
   const handleRegisterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -138,7 +139,7 @@ export default function App() {
       case 'patients': return <PatientList users={state.users} visits={state.ancVisits} onEdit={(u) => { setEditingPatient(u); setView('register'); }} searchFilter={patientSearch} />;
       case 'map': return <MapView users={state.users} />;
       case 'register': return <RegistrationForm initialData={editingPatient} onSubmit={handleRegisterSubmit} onCancel={() => setView('patients')} />;
-      case 'monitoring': return <RiskMonitoring state={state} />; // Update koneksi ke monitoring resiko
+      case 'monitoring': return <RiskMonitoring state={state} />;
       case 'education': return <EducationModule />;
       case 'smart-card': return <SmartCardModule state={state} setState={setState} isUser={currentUser?.role === UserRole.USER} user={currentUser!} />;
       case 'contact': return <ContactModule />;
@@ -150,30 +151,43 @@ export default function App() {
   if (!currentUser) return <LoginScreen onLogin={setCurrentUser} />;
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]">
+    <div className="flex min-h-screen bg-[#F8FAFC] overflow-x-hidden">
+      {/* Floating Pop-up Trigger (Visible when sidebar is closed) */}
+      {!isSidebarOpen && (
+        <button 
+          onClick={toggleSidebar}
+          className="fixed top-8 left-8 z-[60] bg-indigo-600 p-4 rounded-2xl text-white shadow-2xl hover:scale-110 active:scale-95 transition-all animate-in zoom-in duration-500"
+          title="Tampilkan Menu"
+        >
+          <Menu size={28} />
+        </button>
+      )}
+
       <Sidebar 
         currentView={view} 
         onNavigate={setView} 
         onLogout={handleLogout} 
         userRole={currentUser.role} 
-        isOpen={isSidebarOpen} 
+        isOpen={isSidebarOpen}
+        onToggle={toggleSidebar}
       />
+      
       <main className={`flex-1 transition-all duration-700 ease-in-out ${isSidebarOpen ? 'lg:ml-80' : 'ml-0'}`}>
         <Header 
           title={view === 'monitoring' ? 'Monitoring Resiko' : view} 
           userName={currentUser.name} 
           userRole={currentUser.role} 
-          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+          onToggleSidebar={toggleSidebar} 
           onSearchChange={(v) => { setPatientSearch(v); setView('patients'); }}
           onLogout={handleLogout}
         />
-        <div className="p-16 max-w-7xl mx-auto">{renderContent()}</div>
+        <div className="p-10 lg:p-16 max-w-7xl mx-auto">{renderContent()}</div>
       </main>
     </div>
   );
 }
 
-// Komponen Pembantu Internal (StatCard & Form)
+// Komponen Pembantu Internal
 
 const StatCard = ({ icon, title, value, color }: any) => (
   <div className={`bg-white p-8 rounded-[2.5rem] border-b-[6px] border-${color}-600 shadow-sm flex items-center gap-6`}>
