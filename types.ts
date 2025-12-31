@@ -13,10 +13,11 @@ export interface User {
   lat?: number;
   lng?: number;
   pregnancyMonth: number;
-  pregnancyNumber: number; // Tambahan: Kelahiran ke-
+  pregnancyNumber: number;
   medicalHistory: string;
   role: UserRole;
   phone: string;
+  isActive: boolean; // Fitur Baru: Kontrol Akses
 }
 
 export interface ANCVisit {
@@ -39,7 +40,7 @@ export interface EducationContent {
   type: 'TEXT' | 'VIDEO' | 'IMAGE';
   content: string;
   thumbnail: string;
-  url?: string; // Tambahan: Link eksternal
+  url?: string;
 }
 
 export interface AppState {
