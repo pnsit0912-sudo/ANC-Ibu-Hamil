@@ -18,6 +18,8 @@ import { getMedicalRecommendation, calculatePregnancyProgress, formatDate } from
 import { SmartCardModule, EducationModule, ContactModule, AccessDenied } from './FeatureModules';
 import { AuditTrail } from './AuditTrail';
 
+const STORAGE_KEY = 'SMART_ANC_V2_DATA';
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [view, setView] = useState('dashboard');
@@ -31,17 +33,33 @@ export default function App() {
   
   const [selectedKec, setSelectedKec] = useState<string>("Pasar Minggu");
 
-  const [state, setState] = useState<AppState>({
-    currentUser: null,
-    users: MOCK_USERS,
-    ancVisits: [
-      { id: 'v1', patientId: 'u1', visitDate: '2023-11-20', scheduledDate: '2023-11-20', nextVisitDate: '2023-12-20', bloodPressure: '120/80', complaints: 'Pusing ringan di pagi hari', edema: false, fetalMovement: 'Aktif', followUp: 'Tingkatkan istirahat dan nutrisi zat besi', nakesId: 'nakes1', status: 'COMPLETED' },
-    ],
-    selectedPatientId: null,
-    logs: [
-      { id: 'l1', timestamp: new Date().toISOString(), userId: 'system', userName: 'System', action: 'INITIALIZE', module: 'CORE', details: 'Sistem Smart ANC Berhasil Dimuat' }
-    ]
+  // Inisialisasi State dari LocalStorage atau Mock Data jika kosong
+  const [state, setState] = useState<AppState>(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        return JSON.parse(savedData);
+      } catch (e) {
+        console.error("Gagal memuat data tersimpan:", e);
+      }
+    }
+    return {
+      currentUser: null,
+      users: MOCK_USERS,
+      ancVisits: [
+        { id: 'v1', patientId: 'u1', visitDate: '2023-11-20', scheduledDate: '2023-11-20', nextVisitDate: '2023-12-20', bloodPressure: '120/80', complaints: 'Pusing ringan di pagi hari', edema: false, fetalMovement: 'Aktif', followUp: 'Tingkatkan istirahat dan nutrisi zat besi', nakesId: 'nakes1', status: 'COMPLETED' },
+      ],
+      selectedPatientId: null,
+      logs: [
+        { id: 'l1', timestamp: new Date().toISOString(), userId: 'system', userName: 'System', action: 'INITIALIZE', module: 'CORE', details: 'Sistem Smart ANC Berhasil Dimuat' }
+      ]
+    };
   });
+
+  // Efek untuk menyimpan setiap perubahan state ke LocalStorage secara otomatis
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [state]);
 
   const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -144,6 +162,19 @@ export default function App() {
     }
   }, [addLog, showNotification]);
 
+  // Fix: Added handleToggleVisitStatus to handle visit status changes and satisfy component props
+  const handleToggleVisitStatus = useCallback((visitId: string) => {
+    setState(prev => ({
+      ...prev,
+      ancVisits: prev.ancVisits.map(v => 
+        v.id === visitId 
+          ? { ...v, status: v.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED' } 
+          : v
+      )
+    }));
+    addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Mengubah status validasi kunjungan ID: ${visitId}`);
+  }, [addLog]);
+
   const handleAddVisitSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isAddingVisit) return;
@@ -178,17 +209,6 @@ export default function App() {
     if (view !== 'patients') setView('monitoring');
   };
 
-  const handleToggleVisitStatus = useCallback((visitId: string) => {
-    setState(prev => ({
-      ...prev,
-      ancVisits: prev.ancVisits.map(v => 
-        v.id === visitId ? { ...v, status: (v.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED') as any } : v
-      )
-    }));
-    addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Update status kunjungan ID ${visitId}`);
-  }, [addLog]);
-
-  // Logika Auto-Flag Kunjungan Terlewat
   const missedVisitPatients = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     return state.users.filter(u => u.role === UserRole.USER).filter(u => {
@@ -339,7 +359,6 @@ export default function App() {
                </div>
             </div>
 
-            {/* AUTO-FLAG NOTIFICATION FOR MISSED VISITS */}
             {missedVisitPatients.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-[3rem] p-10 animate-in slide-in-from-left-4 duration-500">
                 <div className="flex items-center justify-between mb-8">
