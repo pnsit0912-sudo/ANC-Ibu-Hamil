@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { UserRole, User, AppState, ANCVisit, SystemLog } from './types';
 import { MOCK_USERS, PUSKESMAS_INFO, WILAYAH_DATA } from './constants';
 import { 
   HeartPulse, Stethoscope, CheckCircle, AlertCircle, Users, Menu, MapPin, Navigation, CloudLightning, ShieldAlert, Calendar, Info, AlertTriangle, Bell,
-  UserPlus, Edit3, X, Clock, Baby, ClipboardList, Map as MapIcon
+  UserPlus, Edit3, X, Clock, Baby, ClipboardList, Map as MapIcon, Trash2, UserX
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -29,7 +29,6 @@ export default function App() {
   const [autoOpenHistoryId, setAutoOpenHistoryId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
-  // State for Dynamic Form Region
   const [selectedKec, setSelectedKec] = useState<string>("Pasar Minggu");
 
   const [state, setState] = useState<AppState>({
@@ -44,12 +43,12 @@ export default function App() {
     ]
   });
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
+  const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
-  const addLog = (action: string, module: string, details: string) => {
+  const addLog = useCallback((action: string, module: string, details: string) => {
     const newLog: SystemLog = {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -62,7 +61,7 @@ export default function App() {
     setState(prev => ({ ...prev, logs: [newLog, ...prev.logs].slice(0, 100) }));
     setIsSyncing(true);
     setTimeout(() => setIsSyncing(false), 800);
-  };
+  }, [currentUser]);
 
   const handleLogout = () => { 
     if (confirm('Keluar dari sistem?')) {
@@ -119,6 +118,32 @@ export default function App() {
     setView('patients');
   };
 
+  const handleDeletePatient = useCallback((userId: string) => {
+    const patient = state.users.find(u => u.id === userId);
+    if (!patient) return;
+    
+    if (confirm(`Hapus data pasien ${patient.name} beserta seluruh riwayat kunjungannya secara permanen? Tindakan ini tidak dapat dibatalkan.`)) {
+      setState(prev => ({
+        ...prev,
+        users: prev.users.filter(u => u.id !== userId),
+        ancVisits: prev.ancVisits.filter(v => v.patientId !== userId)
+      }));
+      addLog('DELETE_PATIENT', 'DATA', `Menghapus pasien: ${patient.name} (ID: ${userId})`);
+      showNotification(`Data pasien ${patient.name} telah dihapus.`);
+    }
+  }, [state.users, addLog, showNotification]);
+
+  const handleDeleteVisit = useCallback((id: string) => {
+    if (confirm('Hapus data kunjungan ini secara permanen dari riwayat medis?')) {
+      setState(prev => ({
+        ...prev,
+        ancVisits: prev.ancVisits.filter(v => v.id !== id)
+      }));
+      addLog('DELETE_VISIT', 'MEDICAL', `Menghapus kunjungan riwayat ID: ${id}`);
+      showNotification('Data kunjungan berhasil dihapus dari riwayat.');
+    }
+  }, [addLog, showNotification]);
+
   const handleAddVisitSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isAddingVisit) return;
@@ -153,22 +178,26 @@ export default function App() {
     if (view !== 'patients') setView('monitoring');
   };
 
-  const handleToggleVisitStatus = (visitId: string) => {
-    const visit = state.ancVisits.find(v => v.id === visitId);
-    if (!visit) return;
-
-    const newStatus = visit.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED';
-    
+  const handleToggleVisitStatus = useCallback((visitId: string) => {
     setState(prev => ({
       ...prev,
       ancVisits: prev.ancVisits.map(v => 
-        v.id === visitId ? { ...v, status: newStatus as any } : v
+        v.id === visitId ? { ...v, status: (v.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED') as any } : v
       )
     }));
-    
-    addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Update status kunjungan ID ${visitId} menjadi ${newStatus}`);
-    showNotification(`Status kunjungan diperbarui ke ${newStatus === 'COMPLETED' ? 'Selesai' : 'Dijadwalkan'}`);
-  };
+    addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Update status kunjungan ID ${visitId}`);
+  }, [addLog]);
+
+  // Logika Auto-Flag Kunjungan Terlewat
+  const missedVisitPatients = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return state.users.filter(u => u.role === UserRole.USER).filter(u => {
+      const userVisits = state.ancVisits.filter(v => v.patientId === u.id);
+      const latestVisit = userVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+      if (!latestVisit) return false;
+      return latestVisit.nextVisitDate < today;
+    });
+  }, [state.users, state.ancVisits]);
 
   const renderDashboard = () => {
     if (currentUser?.role === UserRole.USER) {
@@ -310,6 +339,38 @@ export default function App() {
                </div>
             </div>
 
+            {/* AUTO-FLAG NOTIFICATION FOR MISSED VISITS */}
+            {missedVisitPatients.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-[3rem] p-10 animate-in slide-in-from-left-4 duration-500">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-red-600 p-3 rounded-2xl text-white shadow-lg shadow-red-100">
+                      <AlertCircle size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-red-900 uppercase tracking-tighter">Peringatan Kunjungan Terlewat</h3>
+                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Sistem mendeteksi {missedVisitPatients.length} pasien terlambat kontrol</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setView('monitoring')} className="text-[10px] font-black text-red-600 underline uppercase tracking-widest">Lihat Semua</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {missedVisitPatients.slice(0, 4).map(p => (
+                    <div key={p.id} className="bg-white p-6 rounded-[2rem] border border-red-100 flex items-center justify-between group hover:border-red-400 transition-all cursor-pointer" onClick={() => { setAutoOpenHistoryId(p.id); setView('patients'); }}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 font-black">{p.name.charAt(0)}</div>
+                        <div>
+                          <p className="text-xs font-black text-gray-900">{p.name}</p>
+                          <p className="text-[9px] font-bold text-red-400 uppercase">Terlambat Sejak: {state.ancVisits.filter(v => v.patientId === p.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0]?.nextVisitDate}</p>
+                        </div>
+                      </div>
+                      <Navigation size={14} className="text-gray-200 group-hover:text-red-500" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-gray-100">
                <div className="flex items-center justify-between mb-10">
                  <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3"><Bell className="text-indigo-600" size={28} /> Notifikasi Sistem</h3>
@@ -401,7 +462,7 @@ export default function App() {
 
         <div className="p-16 max-w-[1600px] mx-auto min-h-[calc(100vh-8rem)]">
           {notification && (
-            <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-50 px-10 py-5 rounded-[2rem] shadow-2xl border flex items-center gap-4 animate-in slide-in-from-top-4 duration-500 font-black text-xs uppercase tracking-widest ${notification.type === 'success' ? 'bg-white text-emerald-600 border-emerald-100' : 'bg-white text-red-600 border-red-100'}`}>
+            <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[999] px-10 py-5 rounded-[2rem] shadow-2xl border flex items-center gap-4 animate-in slide-in-from-top-4 duration-500 font-black text-xs uppercase tracking-widest ${notification.type === 'success' ? 'bg-white text-emerald-600 border-emerald-100' : 'bg-white text-red-600 border-red-100'}`}>
               {notification.type === 'success' ? <CheckCircle className="text-emerald-500" /> : <AlertCircle className="text-red-500" />}
               {notification.message}
             </div>
@@ -415,7 +476,8 @@ export default function App() {
               visits={state.ancVisits} 
               onEdit={(u) => { setEditingPatient(u); setView('register'); }} 
               onAddVisit={(u) => setIsAddingVisit(u)}
-              onDeleteVisit={(id) => { if(confirm('Hapus data kunjungan ini?')) { setState(prev => ({...prev, ancVisits: prev.ancVisits.filter(v => v.id !== id)})); addLog('DELETE_VISIT', 'MEDICAL', `Menghapus kunjungan ID ${id}`); showNotification('Kunjungan berhasil dihapus'); } }}
+              onDeleteVisit={handleDeleteVisit}
+              onDeletePatient={handleDeletePatient}
               onToggleVisitStatus={handleToggleVisitStatus}
               currentUserRole={currentUser.role}
               searchFilter={patientSearch}
@@ -474,7 +536,6 @@ export default function App() {
                   <input type="date" name="hpht" defaultValue={editingPatient?.hpht} className="w-full px-8 py-5 bg-gray-50 border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" required />
                 </div>
 
-                {/* Region Selection */}
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">Kecamatan</label>
                   <select 
@@ -540,15 +601,14 @@ export default function App() {
         </div>
       </main>
 
-      {/* Floating Modal for Visit Input */}
       {isAddingVisit && (
         <div 
           className="fixed inset-0 z-[100] bg-indigo-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300"
-          onClick={() => setIsAddingVisit(null)} // Click on backdrop to close
+          onClick={() => setIsAddingVisit(null)}
         >
           <div 
             className="bg-white w-full max-w-2xl rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500"
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-indigo-600 p-12 text-white flex justify-between items-center relative">
               <div className="relative z-10">
@@ -562,7 +622,6 @@ export default function App() {
               >
                 <X size={24} />
               </button>
-              {/* Added pointer-events-none to prevent decoration from blocking clicks */}
               <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
                 <Stethoscope size={200} />
               </div>

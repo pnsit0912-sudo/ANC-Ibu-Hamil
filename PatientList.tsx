@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2, Check, Baby } from 'lucide-react';
+import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2, Check, Baby, Download, UserX } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
 import { getMedicalRecommendation, calculatePregnancyProgress } from './utils';
 
@@ -10,6 +10,7 @@ interface PatientListProps {
   onEdit: (u: User) => void;
   onAddVisit: (u: User) => void;
   onDeleteVisit: (visitId: string) => void;
+  onDeletePatient: (userId: string) => void;
   onToggleVisitStatus: (visitId: string) => void;
   currentUserRole: UserRole;
   searchFilter: string;
@@ -18,7 +19,7 @@ interface PatientListProps {
 }
 
 export const PatientList: React.FC<PatientListProps> = ({ 
-  users, visits, onEdit, onAddVisit, onDeleteVisit, onToggleVisitStatus, currentUserRole, searchFilter, initialSelectedHistoryId, clearAutoOpen 
+  users, visits, onEdit, onAddVisit, onDeleteVisit, onDeletePatient, onToggleVisitStatus, currentUserRole, searchFilter, initialSelectedHistoryId, clearAutoOpen 
 }) => {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [isPrivacyOn, setIsPrivacyOn] = useState(true);
@@ -54,6 +55,12 @@ export const PatientList: React.FC<PatientListProps> = ({
     return userVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0].nextVisitDate;
   };
 
+  const isVisitMissed = (date: string | null) => {
+    if (!date) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return date < today;
+  };
+
   const isVisitNear = (date: string | null) => {
     if (!date) return false;
     const today = new Date();
@@ -63,18 +70,79 @@ export const PatientList: React.FC<PatientListProps> = ({
     return diffDays >= 0 && diffDays <= 3;
   };
 
+  const handleExportCSV = () => {
+    const headers = [
+      'ID Pasien', 
+      'Nama Lengkap', 
+      'Telepon', 
+      'Kelurahan', 
+      'HPHT', 
+      'Usia Hamil (Minggu)', 
+      'HPL Est', 
+      'Riwayat Medis',
+      'ANC Terakhir',
+      'Tensi Terakhir',
+      'Status Edema',
+      'Gerakan Janin',
+      'Instruksi Bidan'
+    ];
+
+    const csvData = filteredUsers.map(u => {
+      const progress = calculatePregnancyProgress(u.hpht);
+      const userVisits = visits.filter(v => v.patientId === u.id);
+      const latest = userVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+
+      return [
+        `"${u.id}"`,
+        `"${u.name}"`,
+        `"${u.phone}"`,
+        `"${u.kelurahan}"`,
+        `"${u.hpht}"`,
+        `"${progress?.weeks || 0}"`,
+        `"${progress?.hpl || '-'}"`,
+        `"${u.medicalHistory || '-'}"`,
+        `"${latest?.visitDate || '-'}"`,
+        `"${latest?.bloodPressure || '-'}"`,
+        `"${latest?.edema ? 'Ada' : 'Tidak Ada'}"`,
+        `"${latest?.fetalMovement || '-'}"`,
+        `"${latest?.followUp?.replace(/"/g, '""') || '-'}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...csvData].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `SmartANC_DataPasien_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-500">
-      <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+      <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
           <Users className="text-indigo-600" size={24} /> Manajemen Data & Tindak Lanjut
         </h2>
-        <button 
-          onClick={() => setIsPrivacyOn(!isPrivacyOn)}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isPrivacyOn ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}
-        >
-          {isPrivacyOn ? <><EyeOff size={14}/> Privacy On</> : <><Eye size={14}/> Privacy Off</>}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {(currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.NAKES) && (
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95"
+            >
+              <Download size={14} /> Export Data CSV
+            </button>
+          )}
+          <button 
+            onClick={() => setIsPrivacyOn(!isPrivacyOn)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isPrivacyOn ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}
+          >
+            {isPrivacyOn ? <><EyeOff size={14}/> Privacy On</> : <><Eye size={14}/> Privacy Off</>}
+          </button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
@@ -95,14 +163,22 @@ export const PatientList: React.FC<PatientListProps> = ({
               const isOpen = selectedHistoryId === u.id;
               const nextDate = getNextVisit(u.id);
               const near = isVisitNear(nextDate);
+              const missed = isVisitMissed(nextDate);
               const risk = getPatientRiskStatus(u.id);
 
               return (
                 <React.Fragment key={u.id}>
                   <tr className={`hover:bg-indigo-50/10 transition-colors ${isOpen ? 'bg-indigo-50/20' : ''}`}>
                     <td className="px-8 py-6">
-                      <p className="font-bold text-gray-900 leading-tight">{u.name}</p>
-                      <p className="text-[10px] text-gray-400 font-bold mt-0.5">{maskPhone(u.phone)}</p>
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="font-bold text-gray-900 leading-tight">{u.name}</p>
+                          <p className="text-[10px] text-gray-400 font-bold mt-0.5">{maskPhone(u.phone)}</p>
+                        </div>
+                        {missed && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[8px] font-black rounded uppercase animate-pulse">Terlambat</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-2">
@@ -121,8 +197,10 @@ export const PatientList: React.FC<PatientListProps> = ({
                     </td>
                     <td className="px-8 py-6">
                        {nextDate ? (
-                         <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${near ? 'text-red-600 animate-pulse' : 'text-indigo-600'}`}>
-                           <Calendar size={14} /> {nextDate}
+                         <div className={`flex items-center gap-3 font-black text-[10px] uppercase ${missed ? 'text-red-700' : near ? 'text-red-600 animate-pulse' : 'text-indigo-600'}`}>
+                           <Calendar size={14} /> 
+                           <span>{nextDate}</span>
+                           {missed && <AlertCircle size={14} className="animate-bounce" />}
                          </div>
                        ) : (
                          <span className="text-[9px] font-bold text-gray-300 italic uppercase tracking-tighter">Belum Terjadwal</span>
@@ -145,7 +223,24 @@ export const PatientList: React.FC<PatientListProps> = ({
                       </button>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <button onClick={() => onEdit(u)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"><Edit3 size={18} /></button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => onEdit(u)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"><Edit3 size={18} /></button>
+                        
+                        {/* FEATURE: DELETE PATIENT (ONLY FOR ADMIN/NAKES) */}
+                        {(currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.NAKES) && (
+                          <button 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onDeletePatient(u.id);
+                            }} 
+                            className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                            title="Hapus Data Pasien"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {isOpen && (
@@ -177,12 +272,19 @@ export const PatientList: React.FC<PatientListProps> = ({
                                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
                                               Kontrol Berikutnya: {v.nextVisitDate}
                                             </span>
-                                            {currentUserRole === UserRole.ADMIN && (
+                                            {/* FIXED DELETE BUTTON - FOR ADMIN AND NAKES */}
+                                            {(currentUserRole === UserRole.ADMIN || currentUserRole === UserRole.NAKES) && (
                                               <button 
-                                                onClick={() => onDeleteVisit(v.id)}
-                                                className="text-red-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-lg"
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation(); // CRITICAL: Stop parent row toggle event
+                                                  onDeleteVisit(v.id);
+                                                }}
+                                                className="text-red-400 hover:text-red-600 transition-all p-2 hover:bg-red-50 rounded-xl relative z-[20] cursor-pointer shadow-sm hover:shadow active:scale-90"
+                                                title="Hapus riwayat pemeriksaan"
                                               >
-                                                <Trash2 size={14} />
+                                                <Trash2 size={16} />
                                               </button>
                                             )}
                                          </div>
