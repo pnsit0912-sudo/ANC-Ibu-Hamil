@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { UserRole, User, ANCVisit, AppState } from './types';
 import { MOCK_USERS, NAVIGATION, PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
 import { 
@@ -9,6 +9,7 @@ import {
   Bell, Info
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
+import L from 'leaflet';
 
 // Views
 const Dashboard = ({ state, patients, setView }: { state: AppState, patients: User[], setView: (v: string) => void }) => {
@@ -216,16 +217,86 @@ const ANCSmartCard = ({ user, isAdmin }: { user: User, isAdmin: boolean }) => {
 };
 
 const MapView = ({ users }: { users: User[] }) => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const leafletMap = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (mapRef.current && !leafletMap.current) {
+      // Initialize Map
+      const map = L.map(mapRef.current).setView([PUSKESMAS_INFO.lat, PUSKESMAS_INFO.lng], 14);
+      leafletMap.current = map;
+
+      // Add Tile Layer (OpenStreetMap - Free)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      // Custom Icons
+      const clinicIcon = L.divIcon({
+        html: `<div class="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg text-white"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg></div>`,
+        className: 'custom-div-icon',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+
+      const patientIcon = L.divIcon({
+        html: `<div class="bg-red-500 p-1.5 rounded-full border-2 border-white shadow-md text-white"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></div>`,
+        className: 'custom-div-icon',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      // Add Puskesmas Marker
+      L.marker([PUSKESMAS_INFO.lat, PUSKESMAS_INFO.lng], { icon: clinicIcon })
+        .addTo(map)
+        .bindPopup(`<strong>${PUSKESMAS_INFO.name}</strong><br/>Pusat Layanan Kesehatan`)
+        .openPopup();
+
+      // Add Patient Markers
+      users.filter(u => u.role === UserRole.USER && u.lat && u.lng).forEach(patient => {
+        L.marker([patient.lat!, patient.lng!], { icon: patientIcon })
+          .addTo(map)
+          .bindPopup(`
+            <div class="p-1">
+              <strong class="text-blue-700">${patient.name}</strong><br/>
+              <span class="text-xs text-gray-500">Hamil: ${patient.pregnancyMonth} Bulan</span><br/>
+              <span class="text-[10px] text-gray-400">${patient.address}</span>
+            </div>
+          `);
+      });
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (leafletMap.current) {
+        leafletMap.current.remove();
+        leafletMap.current = null;
+      }
+    };
+  }, [users]);
+
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="font-bold text-lg mb-4">Pemetaan Distribusi Ibu Hamil</h2>
-        <div className="h-[500px] w-full bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden">
-          <img src="https://picsum.photos/seed/map/1200/800" className="absolute inset-0 w-full h-full object-cover opacity-50" alt="map placeholder" />
-          <div className="relative z-10 flex flex-col items-center">
-            <MapPin className="text-blue-600 mb-2" size={48} />
-            <p className="text-gray-600 font-medium">Integrasi Google Maps API</p>
-            <p className="text-gray-400 text-sm">Menampilkan {users.filter(u => u.role === UserRole.USER).length} pasien terdaftar</p>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="font-bold text-xl text-gray-800">Pemetaan Distribusi Pasien</h2>
+            <p className="text-sm text-gray-500">Visualisasi lokasi tempat tinggal ibu hamil di wilayah kerja Puskesmas.</p>
+          </div>
+          <div className="flex gap-4 text-xs font-semibold">
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-600"></span> Puskesmas</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500"></span> Ibu Hamil</div>
+          </div>
+        </div>
+        
+        <div className="relative border-4 border-gray-50 rounded-2xl overflow-hidden shadow-inner">
+          <div id="map-container" ref={mapRef}></div>
+          <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur px-3 py-2 rounded-lg border border-gray-200 shadow-sm text-[10px] font-medium max-w-[200px]">
+            <p className="text-gray-400 uppercase tracking-widest mb-1">Status Sistem</p>
+            <p className="text-green-600 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+              Peta Berbasis OpenStreetMap (Gratis)
+            </p>
           </div>
         </div>
       </div>
