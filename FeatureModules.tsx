@@ -1,9 +1,9 @@
 
-import React from 'react';
-import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
-import { User, AppState } from './types';
+import { User, AppState, EducationContent } from './types';
 
 // Modul Smart Card
 export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppState, setState: any, isUser: boolean, user: User }) => {
@@ -64,26 +64,122 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
 };
 
 // Modul Edukasi
-export const EducationModule = () => (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-in fade-in duration-700">
-    {EDUCATION_LIST.map(edu => (
-      <div key={edu.id} className="bg-white rounded-[3rem] overflow-hidden shadow-sm group border border-gray-100 hover:shadow-2xl transition-all duration-500">
-        <div className="h-64 overflow-hidden relative">
-          <img src={edu.thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" alt={edu.title} />
-          <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/80 to-transparent opacity-60" />
-          <div className="absolute bottom-6 left-6">
-            <span className="px-4 py-1.5 bg-white/20 backdrop-blur-xl text-white text-[9px] font-black rounded-full uppercase tracking-widest border border-white/30">{edu.type}</span>
+export const EducationModule = () => {
+  const [activeCategory, setActiveCategory] = useState<string>('ALL');
+
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(EDUCATION_LIST.map(edu => edu.category)));
+    return ['ALL', ...cats];
+  }, []);
+
+  const filteredEducation = useMemo(() => {
+    return activeCategory === 'ALL' 
+      ? EDUCATION_LIST 
+      : EDUCATION_LIST.filter(edu => edu.category === activeCategory);
+  }, [activeCategory]);
+
+  const handleShare = async (edu: EducationContent) => {
+    const shareData = {
+      title: edu.title,
+      text: `${edu.title}: ${edu.content}`,
+      url: edu.url,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(edu.url);
+        alert('Tautan berhasil disalin ke papan klip!');
+      }
+    } catch (err) {
+      console.error('Gagal membagikan konten:', err);
+    }
+  };
+
+  return (
+    <div className="space-y-12 animate-in fade-in duration-700">
+      {/* Filter Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg">
+            <Filter size={20} />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase">Topik Edukasi</h3>
+            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Saring materi sesuai kebutuhan</p>
           </div>
         </div>
-        <div className="p-10">
-          <h4 className="text-2xl font-black text-gray-900 mb-4 leading-tight tracking-tighter">{edu.title}</h4>
-          <p className="text-sm text-gray-500 mb-8 line-clamp-2 font-medium">{edu.content}</p>
-          <a href={edu.url} target="_blank" rel="noopener noreferrer" className="block text-center py-5 bg-gray-50 text-indigo-600 font-black text-[10px] rounded-2xl hover:bg-indigo-600 hover:text-white transition-all uppercase tracking-[0.2em]">Buka Materi Lengkap</a>
+
+        <div className="flex flex-wrap gap-2">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeCategory === cat 
+                  ? 'bg-indigo-600 text-white shadow-xl translate-y-[-2px]' 
+                  : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+              }`}
+            >
+              {cat === 'ALL' ? 'Semua Topik' : cat}
+            </button>
+          ))}
         </div>
       </div>
-    ))}
-  </div>
-);
+
+      {/* Content Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        {filteredEducation.map(edu => (
+          <div 
+            key={edu.id} 
+            className="bg-white rounded-[3rem] overflow-hidden shadow-sm group border border-gray-100 hover:shadow-2xl transition-all duration-500 animate-in zoom-in-95"
+          >
+            <div className="h-64 overflow-hidden relative">
+              <img src={edu.thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" alt={edu.title} />
+              <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/80 to-transparent opacity-60" />
+              <div className="absolute bottom-6 left-6 flex gap-2">
+                <span className="px-4 py-1.5 bg-white text-indigo-900 text-[9px] font-black rounded-full uppercase tracking-widest shadow-lg">
+                  {edu.category}
+                </span>
+                <span className="px-4 py-1.5 bg-white/20 backdrop-blur-xl text-white text-[9px] font-black rounded-full uppercase tracking-widest border border-white/30">
+                  {edu.type}
+                </span>
+              </div>
+            </div>
+            <div className="p-10">
+              <h4 className="text-2xl font-black text-gray-900 mb-4 leading-tight tracking-tighter">{edu.title}</h4>
+              <p className="text-sm text-gray-500 mb-8 line-clamp-2 font-medium">{edu.content}</p>
+              <div className="flex gap-3">
+                <a 
+                  href={edu.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex-[2] text-center py-5 bg-gray-50 text-indigo-600 font-black text-[10px] rounded-2xl hover:bg-indigo-600 hover:text-white transition-all uppercase tracking-[0.2em]"
+                >
+                  Buka Materi
+                </a>
+                <button 
+                  onClick={() => handleShare(edu)}
+                  className="flex-1 flex items-center justify-center gap-2 py-5 bg-indigo-50 text-indigo-600 font-black text-[10px] rounded-2xl hover:bg-indigo-100 transition-all uppercase tracking-[0.2em]"
+                  title="Bagikan Materi"
+                >
+                  <Share2 size={16} /> Bagikan
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {filteredEducation.length === 0 && (
+          <div className="col-span-full py-24 text-center">
+            <LayoutGrid size={48} className="mx-auto text-gray-100 mb-4" />
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Belum ada materi untuk kategori ini</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // Modul Kontak
 export const ContactModule = () => (

@@ -88,6 +88,7 @@ export interface EducationContent {
   id: string;
   title: string;
   type: 'TEXT' | 'VIDEO' | 'IMAGE';
+  category: string;
   content: string;
   thumbnail: string;
   url: string;

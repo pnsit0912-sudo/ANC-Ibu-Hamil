@@ -36,10 +36,35 @@ export default function App() {
     if (savedData) {
       try { return JSON.parse(savedData); } catch (e) { console.error(e); }
     }
+
+    // Inisialisasi Data ANC Simulasi untuk Pasien Mock
+    const initialVisits: ANCVisit[] = [
+      {
+        id: 'v1',
+        patientId: 'u1',
+        visitDate: new Date().toISOString().split('T')[0],
+        scheduledDate: new Date().toISOString().split('T')[0],
+        nextVisitDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        weight: 65,
+        bloodPressure: '180/110',
+        tfu: 28,
+        djj: 140,
+        hb: 10,
+        complaints: 'Pusing hebat, pandangan kabur',
+        dangerSigns: ['Nyeri Kepala Hebat', 'Pandangan Kabur'],
+        edema: true,
+        fetalMovement: 'Kurang Aktif',
+        followUp: 'Rujuk RS Segera',
+        nakesNotes: 'Kondisi krisis hipertensi, segera rujuk ke fasilitas kesehatan sekunder.',
+        nakesId: 'bidan',
+        status: 'COMPLETED'
+      }
+    ];
+
     return {
       currentUser: null,
-      users: MOCK_USERS.map(u => ({...u, selectedRiskFactors: [], totalRiskScore: 0})),
-      ancVisits: [],
+      users: MOCK_USERS,
+      ancVisits: initialVisits,
       alerts: [],
       selectedPatientId: null,
       logs: []
@@ -58,16 +83,17 @@ export default function App() {
       const latest = patientVisits[0];
       const risk = getRiskCategory(patient.totalRiskScore, latest);
 
-      // 1. Deteksi Pasien Darurat (Triase Hitam)
-      if (risk.label === 'HITAM') {
-        const alertId = `emergency-${patient.id}-${today}`;
+      // 1. Deteksi Pasien Darurat (Triase Hitam & Merah)
+      if (risk.label === 'HITAM' || risk.label === 'MERAH') {
+        const alertId = `emergency-${risk.label}-${patient.id}-${today}`;
         if (!state.alerts.some(a => a.id === alertId)) {
+          const riskLabel = risk.label === 'HITAM' ? 'KRITIS (HITAM)' : 'SANGAT TINGGI (MERAH)';
           newAlerts.push({
             id: alertId,
             type: 'EMERGENCY',
             patientId: patient.id,
             patientName: patient.name,
-            message: 'Kondisi gawat darurat terdeteksi! Segera lakukan penanganan atau rujukan.',
+            message: `Peringatan! Risiko ${riskLabel} terdeteksi. Segera lakukan penanganan atau evaluasi rujukan.`,
             timestamp: new Date().toISOString(),
             isRead: false
           });
@@ -94,7 +120,7 @@ export default function App() {
     if (newAlerts.length > 0) {
       setState(prev => ({
         ...prev,
-        alerts: [...newAlerts, ...prev.alerts].slice(0, 50) // Simpan max 50 notifikasi
+        alerts: [...newAlerts, ...prev.alerts].slice(0, 50)
       }));
     }
   }, [state.ancVisits, state.users, currentUser]);
@@ -245,7 +271,7 @@ export default function App() {
              </div>
              <div className="bg-slate-950 p-12 rounded-[4rem] text-white flex flex-col justify-center relative overflow-hidden">
                 <h4 className="text-3xl font-black uppercase tracking-tighter mb-4">Sistem Monitoring Mandiri</h4>
-                <p className="text-sm text-slate-400 font-bold mb-10">Data pasien saat ini tersimpan secara lokal dan dioptimalkan untuk integrasi API Cloud di masa mendatang.</p>
+                <p className="text-sm text-slate-400 font-bold mb-10">Data pasien saat ini tersimpan secara lokal.</p>
                 <div className="flex gap-4">
                   <div className="px-6 py-3 bg-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">Storage: LocalStorage</div>
                   <div className="px-6 py-3 bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">Uptime: 100%</div>
@@ -465,7 +491,6 @@ export default function App() {
                   <div className="flex justify-between items-center mb-10 relative z-10">
                     <div>
                       <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2"><ShieldAlert size={16}/> Analisa Faktor Komplikasi</h4>
-                      <p className="text-[9px] font-bold text-indigo-400 uppercase mt-1">Klik tombol di kanan untuk memilih penyakit/alergi</p>
                     </div>
                     <button type="button" onClick={() => setIsRiskModalOpen(true)} className="px-8 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl uppercase shadow-xl hover:scale-105 transition-all flex items-center gap-2">
                       <Edit3 size={14}/> Pilih Riwayat Medis
@@ -480,11 +505,6 @@ export default function App() {
                          <button type="button" onClick={() => setTempRiskFactors(prev => prev.filter(fid => fid !== id))} className="text-gray-300 hover:text-red-500 transition-colors"><X size={14}/></button>
                       </div>
                     ))}
-                    {tempRiskFactors.length === 0 && (
-                      <div className="w-full py-12 text-center">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase italic">Ibu Hamil Tanpa Riwayat Penyakit Penyerta Terdeteksi</p>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -526,7 +546,7 @@ export default function App() {
                         key={id}
                         type="button"
                         onClick={() => setTempRiskFactors(prev => isSelected ? prev.filter(fid => fid !== id) : [...prev, id])}
-                        className={`p-6 rounded-[2.5rem] border-2 text-left transition-all flex flex-col justify-between h-44 group ${
+                        className={`p-6 rounded-[2.5rem] border-2 border-gray-100 text-left transition-all flex flex-col justify-between h-44 group ${
                           isSelected 
                             ? 'bg-indigo-600 border-indigo-700 text-white shadow-2xl shadow-indigo-200' 
                             : 'bg-gray-50 border-gray-100 text-gray-600 hover:border-indigo-200'
@@ -623,7 +643,7 @@ export default function App() {
                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4 flex items-center gap-2">
                          <FileText size={14}/> Catatan Tambahan Nakes (Bidan/Dokter)
                        </label>
-                       <textarea name="nakesNotes" placeholder="Masukkan catatan observasi khusus, anjuran tambahan, atau pesan rahasia nakes untuk tim medis lainnya..." className="w-full p-8 bg-gray-50 rounded-[2.5rem] font-bold outline-none h-32 border-none focus:ring-4 focus:ring-indigo-50 transition-all"></textarea>
+                       <textarea name="nakesNotes" placeholder="Masukkan catatan..." className="w-full p-8 bg-gray-50 rounded-[2.5rem] font-bold outline-none h-32 border-none focus:ring-4 focus:ring-indigo-50 transition-all"></textarea>
                     </div>
 
                     <button type="submit" className="w-full py-6 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-700 hover:scale-[1.01] transition-all">Submit Pemeriksaan</button>
@@ -634,7 +654,7 @@ export default function App() {
 
           {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser} addLog={()=>{}} />}
           {view === 'monitoring' && <RiskMonitoring state={state} onNavigateToPatient={handleNavigate} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
-          {view === 'map' && <MapView users={state.users} />}
+          {view === 'map' && <MapView users={state.users} visits={state.ancVisits} />}
           {view === 'smart-card' && <SmartCardModule state={state} setState={setState} isUser={currentUser.role === UserRole.USER} user={currentUser} />}
           {view === 'education' && <EducationModule />}
           {view === 'contact' && <ContactModule />}

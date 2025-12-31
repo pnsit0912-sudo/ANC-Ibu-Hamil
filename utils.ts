@@ -42,21 +42,57 @@ export const calculatePregnancyProgress = (hphtString: string) => {
 };
 
 export const getRiskCategory = (score: number, currentAncData?: any) => {
-  const baseScore = 2; // Skor awal ibu hamil
+  const baseScore = 2; // Skor awal ibu hamil (KRR)
   const total = score + baseScore;
 
-  // Cek Emergency Khusus (Triase Hitam)
+  // 1. CEK KRITERIA DARURAT (TRIASE HITAM / KRITIS)
   if (currentAncData) {
     const [sys, dia] = (currentAncData.bloodPressure || "0/0").split('/').map(Number);
-    const hasMajorSigns = currentAncData.dangerSigns?.some((s: string) => 
-      ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Gerak Janin Berkurang'].includes(s)
+    const hasEmergencySigns = currentAncData.dangerSigns?.some((s: string) => 
+      ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Nyeri Kepala Hebat', 'Pandangan Kabur'].includes(s)
     );
-    if (sys >= 160 || dia >= 110 || hasMajorSigns) {
-      return { label: 'HITAM', desc: 'KRITIS / GAWAT DARURAT', color: 'text-white bg-slate-950', hex: '#020617' };
+    
+    // Syarat Hitam: Hipertensi Berat ATAU Tanda Bahaya Fatal ATAU Gerak Janin Absen
+    if (sys >= 160 || dia >= 110 || hasEmergencySigns || currentAncData.fetalMovement === 'Tidak Ada') {
+      return { 
+        label: 'HITAM', 
+        desc: 'KRITIS / GAWAT DARURAT', 
+        color: 'text-white bg-slate-950', 
+        hex: '#020617',
+        priority: 0
+      };
     }
   }
 
-  if (total >= 12) return { label: 'MERAH', desc: 'Risiko Sangat Tinggi (KRST)', color: 'text-red-700 bg-red-100', hex: '#b91c1c' };
-  if (total >= 6) return { label: 'KUNING', desc: 'Risiko Tinggi (KRT)', color: 'text-orange-700 bg-orange-100', hex: '#c2410c' };
-  return { label: 'HIJAU', desc: 'Risiko Rendah (KRR)', color: 'text-emerald-700 bg-emerald-100', hex: '#047857' };
+  // 2. CEK SKOR POEDJI ROCHJATI
+  // Skor >= 12: Risiko Sangat Tinggi (MERAH)
+  if (total >= 12) {
+    return { 
+      label: 'MERAH', 
+      desc: 'Risiko Sangat Tinggi (KRST)', 
+      color: 'text-red-700 bg-red-100', 
+      hex: '#b91c1c',
+      priority: 1
+    };
+  }
+  
+  // Skor 6 - 10: Risiko Tinggi (KUNING)
+  if (total >= 6) {
+    return { 
+      label: 'KUNING', 
+      desc: 'Risiko Tinggi (KRT)', 
+      color: 'text-orange-700 bg-orange-100', 
+      hex: '#c2410c',
+      priority: 2
+    };
+  }
+  
+  // Skor 2: Risiko Rendah (HIJAU)
+  return { 
+    label: 'HIJAU', 
+    desc: 'Risiko Rendah (KRR)', 
+    color: 'text-emerald-700 bg-emerald-100', 
+    hex: '#047857',
+    priority: 3
+  };
 };

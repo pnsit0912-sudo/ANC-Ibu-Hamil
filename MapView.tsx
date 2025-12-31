@@ -2,15 +2,16 @@
 import React, { useRef, useEffect } from 'react';
 import L from 'leaflet';
 import { Map as MapIcon, Info, Users, ShieldAlert, Heart, Calendar } from 'lucide-react';
-import { User, UserRole } from './types';
+import { User, UserRole, ANCVisit } from './types';
 import { PUSKESMAS_INFO } from './constants';
 import { getRiskCategory } from './utils';
 
 interface MapViewProps {
   users: User[];
+  visits: ANCVisit[];
 }
 
-export const MapView: React.FC<MapViewProps> = ({ users }) => {
+export const MapView: React.FC<MapViewProps> = ({ users, visits }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
 
@@ -40,18 +41,30 @@ export const MapView: React.FC<MapViewProps> = ({ users }) => {
           </div>
         `);
 
-      // Pemetaan Marker Pasien Berdasarkan Triase
+      // Pemetaan Marker Pasien Berdasarkan Triase Terintegrasi
       users.filter(u => u.role === UserRole.USER && u.lat).forEach(p => {
-        const risk = getRiskCategory(p.totalRiskScore);
+        // Cari kunjungan terakhir untuk mendapatkan status risiko yang akurat (Sinkron dengan Monitoring)
+        const patientVisits = visits.filter(v => v.patientId === p.id);
+        const latestVisit = patientVisits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
         
-        // Pilih warna berdasarkan triase
+        // GUNAKAN FUNGSI PUSAT (utils.ts) agar warna SAMA PERSIS dengan monitoring
+        const risk = getRiskCategory(p.totalRiskScore, latestVisit);
+        
+        // Pilih warna background marker berdasarkan label risk
         let markerBg = 'bg-emerald-500';
-        if (risk.label === 'HITAM') markerBg = 'bg-slate-950';
-        else if (risk.label === 'MERAH') markerBg = 'bg-red-600';
-        else if (risk.label === 'KUNING') markerBg = 'bg-yellow-400';
+        let animateClass = '';
+        
+        if (risk.label === 'HITAM') {
+          markerBg = 'bg-slate-950';
+          animateClass = 'animate-pulse ring-4 ring-red-500/50';
+        } else if (risk.label === 'MERAH') {
+          markerBg = 'bg-red-600';
+        } else if (risk.label === 'KUNING') {
+          markerBg = 'bg-yellow-400';
+        }
 
         const patientIcon = L.divIcon({
-          html: `<div class="${markerBg} p-2 rounded-full border-2 border-white shadow-xl text-white flex items-center justify-center animate-in zoom-in-50">
+          html: `<div class="${markerBg} ${animateClass} p-2 rounded-full border-2 border-white shadow-xl text-white flex items-center justify-center transition-all duration-500">
                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
                  </div>`,
           iconSize: [28, 28],
@@ -73,19 +86,21 @@ export const MapView: React.FC<MapViewProps> = ({ users }) => {
               </div>
               
               <div class="grid grid-cols-2 gap-3 mb-6">
-                <div className="bg-gray-50 p-2 rounded-xl border border-gray-100">
+                <div class="bg-gray-50 p-2 rounded-xl border border-gray-100">
                   <p class="text-[8px] font-black text-gray-400 uppercase">Usia Hamil</p>
                   <p class="text-xs font-black text-gray-900">${p.pregnancyMonth} Bulan</p>
                 </div>
-                <div className="bg-gray-50 p-2 rounded-xl border border-gray-100">
-                  <p class="text-[8px] font-black text-gray-400 uppercase">Skor SPR</p>
+                <div class="bg-gray-50 p-2 rounded-xl border border-gray-100">
+                  <p class="text-[8px] font-black text-gray-400 uppercase">Skor Total</p>
                   <p class="text-xs font-black text-indigo-600">${p.totalRiskScore + 2}</p>
                 </div>
               </div>
 
               <div class="space-y-2">
-                <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Alamat Domisili</p>
-                <p class="text-[10px] font-bold text-gray-600 bg-gray-50 p-3 rounded-2xl border border-gray-100">${p.address}, ${p.kelurahan}</p>
+                <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Status Klinis Terakhir</p>
+                <div class="text-[10px] font-bold text-gray-600 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                   TD: ${latestVisit?.bloodPressure || 'N/A'} | Hb: ${latestVisit?.hb || 'N/A'} g/dL
+                </div>
               </div>
 
               <div class="mt-6 flex gap-2">
@@ -105,7 +120,7 @@ export const MapView: React.FC<MapViewProps> = ({ users }) => {
         leafletMap.current = null;
       }
     };
-  }, [users]);
+  }, [users, visits]);
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
@@ -115,22 +130,23 @@ export const MapView: React.FC<MapViewProps> = ({ users }) => {
           <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-4">
             <MapIcon className="text-indigo-600" size={32} /> Geospasial Ibu Hamil
           </h2>
-          {/* Fixed: Use className instead of class */}
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-            Monitoring Sebaran Risiko di Wilayah Kerja Puskesmas
+            Peta Sebaran Terintegrasi dengan Sistem Monitoring Resiko
           </p>
         </div>
         
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-2 px-5 py-2.5 bg-slate-950 text-white rounded-2xl text-[9px] font-black uppercase">
-            {/* Fixed: Use className instead of class */}
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Kritis
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Kritis (Hitam)
           </div>
           <div className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border border-red-100 rounded-2xl text-[9px] font-black uppercase">
-            Risiko Tinggi
+            Tinggi (Merah)
+          </div>
+          <div className="flex items-center gap-2 px-5 py-2.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-2xl text-[9px] font-black uppercase">
+            Sedang (Kuning)
           </div>
           <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl text-[9px] font-black uppercase">
-            Stabil
+            Rendah (Hijau)
           </div>
         </div>
       </div>
@@ -142,21 +158,17 @@ export const MapView: React.FC<MapViewProps> = ({ users }) => {
         {/* Floating Stats Layer */}
         <div className="absolute bottom-16 right-16 z-[20] bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] border border-white shadow-2xl max-w-xs animate-in slide-in-from-right-10">
            <h5 className="text-xs font-black uppercase tracking-tighter mb-4 flex items-center gap-2">
-             <ShieldAlert size={16} className="text-indigo-600" /> Ringkasan Wilayah
+             <ShieldAlert size={16} className="text-indigo-600" /> Sinkronisasi Lokasi
            </h5>
            <div className="space-y-3">
              <div className="flex justify-between items-center">
-                {/* Fixed: Use className instead of class */}
-                <span className="text-[10px] font-bold text-gray-500 uppercase">Total Terdata</span>
-                {/* Fixed: Use className instead of class and JSX curly braces */}
-                <span className="text-sm font-black text-gray-900">{users.filter(u => u.role === UserRole.USER).length}</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Pasien Terpetakan</span>
+                <span className="text-sm font-black text-gray-900">{users.filter(u => u.role === UserRole.USER && u.lat).length}</span>
              </div>
              <div className="h-1 bg-gray-100 rounded-full">
-                {/* Fixed: Use className instead of class and style object instead of string */}
                 <div className="h-full bg-indigo-600 rounded-full" style={{ width: '100%' }}></div>
              </div>
-             {/* Fixed: Use className instead of class */}
-             <p className="text-[9px] font-bold text-gray-400 uppercase italic">Sinkronisasi Real-time Aktif</p>
+             <p className="text-[9px] font-bold text-gray-400 uppercase italic">Status Risiko Terhubung Live</p>
            </div>
         </div>
       </div>
