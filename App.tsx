@@ -149,6 +149,22 @@ export default function App() {
     }
   };
 
+  const handleToggleVisitStatus = (visitId: string) => {
+    setState(prev => ({
+      ...prev,
+      ancVisits: prev.ancVisits.map(v => 
+        v.id === visitId 
+          ? { ...v, status: v.status === 'COMPLETED' ? 'SCHEDULED' : 'COMPLETED' }
+          : v
+      )
+    }));
+    
+    const visit = state.ancVisits.find(v => v.id === visitId);
+    const patient = state.users.find(u => u.id === visit?.patientId);
+    const newStatus = visit?.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+    addLog('TOGGLE_VISIT_STATUS', 'MEDICAL', `Mengubah status kunjungan ${visit?.visitDate} milik ${patient?.name} menjadi ${newStatus}`);
+  };
+
   const renderContent = () => {
     if (currentUser && !currentUser.isActive) return <AccessDenied />;
 
@@ -165,6 +181,7 @@ export default function App() {
           onEdit={(u) => { setEditingPatient(u); setView('register'); }} 
           onAddVisit={(u) => setIsAddingVisit(u)} 
           onDeleteVisit={handleDeleteVisit}
+          onToggleVisitStatus={handleToggleVisitStatus}
           currentUserRole={currentUser?.role || UserRole.USER}
           searchFilter={patientSearch} 
         />

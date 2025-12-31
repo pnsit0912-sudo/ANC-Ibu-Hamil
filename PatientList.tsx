@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2 } from 'lucide-react';
+import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2, Check } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
 import { getMedicalRecommendation } from './utils';
 
@@ -10,12 +10,13 @@ interface PatientListProps {
   onEdit: (u: User) => void;
   onAddVisit: (u: User) => void;
   onDeleteVisit: (visitId: string) => void;
+  onToggleVisitStatus: (visitId: string) => void;
   currentUserRole: UserRole;
   searchFilter: string;
 }
 
 export const PatientList: React.FC<PatientListProps> = ({ 
-  users, visits, onEdit, onAddVisit, onDeleteVisit, currentUserRole, searchFilter 
+  users, visits, onEdit, onAddVisit, onDeleteVisit, onToggleVisitStatus, currentUserRole, searchFilter 
 }) => {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [isPrivacyOn, setIsPrivacyOn] = useState(true);
@@ -135,14 +136,28 @@ export const PatientList: React.FC<PatientListProps> = ({
                             <div className="bg-white rounded-[2.5rem] p-10 border border-gray-100 shadow-sm relative overflow-hidden">
                                <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><Clock size={18} className="text-indigo-500"/> Timeline Pemeriksaan</h4>
                                <div className="space-y-8">
-                                 {userVisits.length > 0 ? userVisits.slice().reverse().map(v => (
+                                 {userVisits.length > 0 ? userVisits.slice().reverse().map(v => {
+                                   const isCompleted = v.status === 'COMPLETED';
+                                   return (
                                    <div key={v.id} className="flex gap-6 border-l-2 border-dashed border-gray-100 pl-8 pb-8 relative last:pb-0">
-                                     <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-white shadow-md ${v.status === 'COMPLETED' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                     <div className="flex-1">
+                                     {/* Interactive Checklist Box */}
+                                     <button 
+                                       onClick={() => onToggleVisitStatus(v.id)}
+                                       className={`absolute -left-[14px] top-0 w-7 h-7 rounded-full border-4 border-white shadow-md flex items-center justify-center transition-all transform hover:scale-110 active:scale-90 ${
+                                         isCompleted ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400 hover:bg-emerald-100 hover:text-emerald-500'
+                                       }`}
+                                       title={isCompleted ? "Tandai Belum Selesai" : "Tandai Selesai"}
+                                     >
+                                       {isCompleted ? <Check size={14} strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
+                                     </button>
+
+                                     <div className={`flex-1 transition-opacity ${isCompleted ? 'opacity-100' : 'opacity-70'}`}>
                                        <div className="flex items-center justify-between mb-3">
-                                         <p className="text-xs font-black text-gray-900">{v.visitDate}</p>
+                                         <p className={`text-xs font-black uppercase tracking-tight ${isCompleted ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                           {v.visitDate} {isCompleted && '✓ SELESAI'}
+                                         </p>
                                          <div className="flex items-center gap-3">
-                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-indigo-100 text-indigo-600`}>
+                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
                                               Kontrol Lanjut: {v.nextVisitDate}
                                             </span>
                                             {currentUserRole === UserRole.ADMIN && (
@@ -156,17 +171,17 @@ export const PatientList: React.FC<PatientListProps> = ({
                                             )}
                                          </div>
                                        </div>
-                                       <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
-                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tensi</p><p className="text-xs font-black text-gray-900">{v.bloodPressure}</p></div>
-                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Janin</p><p className="text-xs font-black text-gray-900">{v.fetalMovement}</p></div>
+                                       <div className={`grid grid-cols-2 gap-4 p-5 rounded-2xl border transition-all ${isCompleted ? 'bg-emerald-50/30 border-emerald-100' : 'bg-gray-50/50 border-gray-100'}`}>
+                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tensi</p><p className={`text-xs font-black ${isCompleted ? 'text-emerald-900' : 'text-gray-900'}`}>{v.bloodPressure}</p></div>
+                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Janin</p><p className={`text-xs font-black ${isCompleted ? 'text-emerald-900' : 'text-gray-900'}`}>{v.fetalMovement}</p></div>
                                        </div>
-                                       <div className="mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                                          <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Tindak Lanjut</p>
-                                          <p className="text-[11px] font-bold text-indigo-900 italic leading-relaxed">"{v.followUp}"</p>
+                                       <div className={`mt-4 p-4 rounded-2xl border italic transition-all ${isCompleted ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-100'}`}>
+                                          <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isCompleted ? 'text-emerald-400' : 'text-indigo-400'}`}>Tindak Lanjut</p>
+                                          <p className={`text-[11px] font-bold leading-relaxed ${isCompleted ? 'text-emerald-900' : 'text-indigo-900'}`}>"{v.followUp}"</p>
                                        </div>
                                      </div>
                                    </div>
-                                 )) : <p className="text-center py-4 text-gray-400 italic font-bold">Belum ada data kunjungan yang diinput.</p>}
+                                 )}) : <p className="text-center py-4 text-gray-400 italic font-bold">Belum ada data kunjungan yang diinput.</p>}
                                </div>
                             </div>
 
