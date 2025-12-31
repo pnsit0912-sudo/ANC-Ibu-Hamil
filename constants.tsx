@@ -32,6 +32,7 @@ export const MOCK_USERS: User[] = [
     lat: -6.3010,
     lng: 106.8330,
     pregnancyMonth: 7,
+    pregnancyNumber: 2,
     medicalHistory: 'Asma ringan',
     role: UserRole.USER,
     phone: '08571234567'
@@ -44,6 +45,7 @@ export const MOCK_USERS: User[] = [
     lat: -6.2980,
     lng: 106.8350,
     pregnancyMonth: 4,
+    pregnancyNumber: 1,
     medicalHistory: 'Tidak ada',
     role: UserRole.USER,
     phone: '0857999888'
@@ -54,6 +56,7 @@ export const MOCK_USERS: User[] = [
     dob: '1980-01-01',
     address: 'Puskesmas Pasar Minggu',
     pregnancyMonth: 0,
+    pregnancyNumber: 0,
     medicalHistory: 'N/A',
     role: UserRole.ADMIN,
     phone: '0812000000'
@@ -64,6 +67,7 @@ export const MOCK_USERS: User[] = [
     dob: '1985-03-10',
     address: 'Puskesmas Pasar Minggu',
     pregnancyMonth: 0,
+    pregnancyNumber: 0,
     medicalHistory: 'N/A',
     role: UserRole.NAKES,
     phone: '0813111111'
@@ -75,21 +79,24 @@ export const EDUCATION_LIST: EducationContent[] = [
     id: 'e1',
     title: 'Nutrisi Penting Trimester Pertama',
     type: 'TEXT',
-    content: 'Fokus pada asam folat, zat besi, dan kalsium untuk pertumbuhan awal janin...',
-    thumbnail: 'https://picsum.photos/seed/health1/400/250'
+    content: 'Panduan lengkap mengenai asam folat, zat besi, dan kalsium untuk pertumbuhan janin.',
+    thumbnail: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&q=80&w=400',
+    url: 'https://www.alodokter.com/nutrisi-ibu-hamil-trimester-1-yang-harus-dipenuhi'
   },
   {
     id: 'e2',
-    title: 'Senam Ibu Hamil di Rumah',
+    title: 'Senam Ibu Hamil Trimester 2 & 3',
     type: 'VIDEO',
-    content: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://picsum.photos/seed/health2/400/250'
+    content: 'Gerakan ringan untuk membantu kelancaran persalinan dan mengurangi nyeri punggung.',
+    thumbnail: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?auto=format&fit=crop&q=80&w=400',
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
   },
   {
     id: 'e3',
-    title: 'Panduan Persiapan Melahirkan',
+    title: 'Infografis Tanda Bahaya Kehamilan',
     type: 'IMAGE',
-    content: 'https://picsum.photos/seed/infographic1/800/1200',
-    thumbnail: 'https://picsum.photos/seed/health3/400/250'
+    content: 'Kenali 6 tanda bahaya pada kehamilan yang mengharuskan Anda segera ke Puskesmas.',
+    thumbnail: 'https://images.unsplash.com/photo-1584362946444-1e7c4f94c88e?auto=format&fit=crop&q=80&w=400',
+    url: 'https://promkes.kemkes.go.id/tanda-bahaya-pada-kehamilan'
   }
 ];

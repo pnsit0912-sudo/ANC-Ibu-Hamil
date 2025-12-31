@@ -13,6 +13,7 @@ export interface User {
   lat?: number;
   lng?: number;
   pregnancyMonth: number;
+  pregnancyNumber: number; // Tambahan: Kelahiran ke-
   medicalHistory: string;
   role: UserRole;
   phone: string;
@@ -38,6 +39,7 @@ export interface EducationContent {
   type: 'TEXT' | 'VIDEO' | 'IMAGE';
   content: string;
   thumbnail: string;
+  url?: string; // Tambahan: Link eksternal
 }
 
 export interface AppState {

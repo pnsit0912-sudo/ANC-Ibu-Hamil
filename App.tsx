@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { UserRole, User, ANCVisit, AppState } from './types';
+import { UserRole, User, ANCVisit, AppState, EducationContent } from './types';
 import { MOCK_USERS, NAVIGATION, PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
 import { 
   LogOut, Menu, X, CheckCircle, AlertCircle, 
   Printer, Download, Search, MapPin, Phone, 
   LayoutDashboard, Users, UserPlus, Settings, BookOpen, QrCode,
-  Bell, Info
+  Bell, Info, ExternalLink, PlayCircle
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import L from 'leaflet';
@@ -22,7 +22,7 @@ const Dashboard = ({ state, patients, setView }: { state: AppState, patients: Us
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
           <div className="bg-blue-100 p-3 rounded-lg text-blue-600">
-            <CheckCircle size={24} />
+            <Users size={24} />
           </div>
           <div>
             <p className="text-sm text-gray-500 font-medium">Total Ibu Hamil</p>
@@ -59,13 +59,13 @@ const Dashboard = ({ state, patients, setView }: { state: AppState, patients: Us
           <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={20} />
           <div className="flex-1">
             <h3 className="text-red-800 font-bold text-sm uppercase tracking-wide">Peringatan Sistem Auto-Flag</h3>
-            <p className="text-red-700 text-sm mt-1">Ditemukan {missedCount} pasien yang tidak hadir sesuai jadwal. Segera lakukan tindak lanjut (monitoring kunjungan).</p>
+            <p className="text-red-700 text-sm mt-1">Ditemukan {missedCount} pasien yang tidak hadir sesuai jadwal. Segera lakukan tindak lanjut.</p>
           </div>
           <button 
             onClick={() => setView('monitoring')}
             className="text-xs font-bold text-red-800 underline uppercase tracking-tighter"
           >
-            Tindak Lanjut Sekarang
+            Tindak Lanjut
           </button>
         </div>
       )}
@@ -97,7 +97,7 @@ const Dashboard = ({ state, patients, setView }: { state: AppState, patients: Us
                         v.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
                         v.status === 'MISSED' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700'
                       }`}>
-                        {v.status === 'MISSED' ? 'AUTO-FLAG: MISSED' : v.status}
+                        {v.status === 'MISSED' ? 'AUTO-FLAG' : v.status}
                       </span>
                     </td>
                   </tr>
@@ -130,9 +130,9 @@ const PatientList = ({ users, role }: { users: User[], role: UserRole }) => {
           <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
             <tr>
               <th className="px-6 py-4">Nama</th>
-              <th className="px-6 py-4">Usia Kehamilan</th>
+              <th className="px-6 py-4">Hamil / Ke-</th>
               <th className="px-6 py-4">Kontak</th>
-              <th className="px-6 py-4">Alamat</th>
+              <th className="px-6 py-4">Riwayat</th>
               <th className="px-6 py-4 text-right">Aksi</th>
             </tr>
           </thead>
@@ -140,14 +140,11 @@ const PatientList = ({ users, role }: { users: User[], role: UserRole }) => {
             {users.filter(u => u.role === UserRole.USER).map((u) => (
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 font-medium">{u.name}</td>
-                <td className="px-6 py-4">{u.pregnancyMonth} Bulan</td>
+                <td className="px-6 py-4">{u.pregnancyMonth} Bln / G{u.pregnancyNumber}</td>
                 <td className="px-6 py-4">{u.phone}</td>
-                <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-xs">{u.address}</td>
+                <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-xs">{u.medicalHistory || '-'}</td>
                 <td className="px-6 py-4 text-right">
-                  <button className="text-blue-600 hover:text-blue-800 font-medium text-sm">Lihat Detail</button>
-                  {role === UserRole.ADMIN && (
-                    <button className="ml-4 text-red-600 hover:text-red-800 font-medium text-sm">Hapus</button>
-                  )}
+                  <button className="text-blue-600 hover:text-blue-800 font-medium text-sm">Detail</button>
                 </td>
               </tr>
             ))}
@@ -158,147 +155,37 @@ const PatientList = ({ users, role }: { users: User[], role: UserRole }) => {
   );
 };
 
-const ANCSmartCard = ({ user, isAdmin }: { user: User, isAdmin: boolean }) => {
-  const handlePrint = () => {
-    window.print();
-  };
-
+const EducationCard = ({ content }: { content: EducationContent }) => {
+  const isVideo = content.type === 'VIDEO';
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 print:shadow-none print:border-none" id="anc-card">
-        <div className="flex flex-col md:flex-row items-center gap-8">
-          <div className="p-4 bg-white border-4 border-blue-600 rounded-xl">
-            <QRCode value={`ANC-PROFILE-${user.id}`} size={180} />
+    <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition group">
+      <div className="relative h-48 overflow-hidden">
+        <img src={content.thumbnail} alt={content.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+        {isVideo && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <PlayCircle className="text-white drop-shadow-lg" size={48} />
           </div>
-          <div className="flex-1 text-center md:text-left">
-            <div className="mb-4">
-              <h1 className="text-2xl font-bold text-blue-800">KARTU ANC PINTAR</h1>
-              <p className="text-gray-500 text-sm">{PUSKESMAS_INFO.name}</p>
-            </div>
-            <div className="space-y-2 text-left inline-block w-full">
-              <div className="flex gap-4">
-                <span className="text-gray-400 font-medium w-24">Nama:</span>
-                <span className="font-bold text-gray-800">{user.name}</span>
-              </div>
-              <div className="flex gap-4">
-                <span className="text-gray-400 font-medium w-24">ID Pasien:</span>
-                <span className="font-bold text-gray-800">{user.id}</span>
-              </div>
-              <div className="flex gap-4">
-                <span className="text-gray-400 font-medium w-24">Tgl Lahir:</span>
-                <span className="font-bold text-gray-800">{user.dob}</span>
-              </div>
-              <div className="flex gap-4">
-                <span className="text-gray-400 font-medium w-24">Alamat:</span>
-                <span className="font-bold text-gray-800 text-sm">{user.address}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-8 pt-6 border-t border-dashed border-gray-200 text-center">
-          <p className="text-xs text-gray-400">Pindai kode QR untuk melihat riwayat perkembangan kehamilan dan jadwal ANC.</p>
-        </div>
-      </div>
-      <div className="mt-6 flex justify-center gap-4 no-print">
-        {isAdmin && (
-          <button 
-            onClick={handlePrint}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition"
-          >
-            <Printer size={18} /> Cetak Kartu
-          </button>
         )}
-        <button className="flex items-center gap-2 bg-gray-200 text-gray-700 px-6 py-2 rounded-lg font-bold hover:bg-gray-300 transition">
-          <Download size={18} /> Simpan PDF
-        </button>
+        <div className="absolute top-4 left-4">
+          <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${
+            isVideo ? 'bg-red-500 text-white' : content.type === 'TEXT' ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'
+          }`}>
+            {content.type}
+          </span>
+        </div>
       </div>
-    </div>
-  );
-};
-
-const MapView = ({ users }: { users: User[] }) => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMap = useRef<L.Map | null>(null);
-
-  useEffect(() => {
-    if (mapRef.current && !leafletMap.current) {
-      // Initialize Map
-      const map = L.map(mapRef.current).setView([PUSKESMAS_INFO.lat, PUSKESMAS_INFO.lng], 14);
-      leafletMap.current = map;
-
-      // Add Tile Layer (OpenStreetMap - Free)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
-
-      // Custom Icons
-      const clinicIcon = L.divIcon({
-        html: `<div class="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg text-white"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg></div>`,
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      });
-
-      const patientIcon = L.divIcon({
-        html: `<div class="bg-red-500 p-1.5 rounded-full border-2 border-white shadow-md text-white"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></div>`,
-        className: 'custom-div-icon',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-      });
-
-      // Add Puskesmas Marker
-      L.marker([PUSKESMAS_INFO.lat, PUSKESMAS_INFO.lng], { icon: clinicIcon })
-        .addTo(map)
-        .bindPopup(`<strong>${PUSKESMAS_INFO.name}</strong><br/>Pusat Layanan Kesehatan`)
-        .openPopup();
-
-      // Add Patient Markers
-      users.filter(u => u.role === UserRole.USER && u.lat && u.lng).forEach(patient => {
-        L.marker([patient.lat!, patient.lng!], { icon: patientIcon })
-          .addTo(map)
-          .bindPopup(`
-            <div class="p-1">
-              <strong class="text-blue-700">${patient.name}</strong><br/>
-              <span class="text-xs text-gray-500">Hamil: ${patient.pregnancyMonth} Bulan</span><br/>
-              <span class="text-[10px] text-gray-400">${patient.address}</span>
-            </div>
-          `);
-      });
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (leafletMap.current) {
-        leafletMap.current.remove();
-        leafletMap.current = null;
-      }
-    };
-  }, [users]);
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="font-bold text-xl text-gray-800">Pemetaan Distribusi Pasien</h2>
-            <p className="text-sm text-gray-500">Visualisasi lokasi tempat tinggal ibu hamil di wilayah kerja Puskesmas.</p>
-          </div>
-          <div className="flex gap-4 text-xs font-semibold">
-            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-600"></span> Puskesmas</div>
-            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500"></span> Ibu Hamil</div>
-          </div>
-        </div>
-        
-        <div className="relative border-4 border-gray-50 rounded-2xl overflow-hidden shadow-inner">
-          <div id="map-container" ref={mapRef}></div>
-          <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur px-3 py-2 rounded-lg border border-gray-200 shadow-sm text-[10px] font-medium max-w-[200px]">
-            <p className="text-gray-400 uppercase tracking-widest mb-1">Status Sistem</p>
-            <p className="text-green-600 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-              Peta Berbasis OpenStreetMap (Gratis)
-            </p>
-          </div>
-        </div>
+      <div className="p-5">
+        <h3 className="font-bold text-gray-800 mb-2 leading-tight">{content.title}</h3>
+        <p className="text-sm text-gray-500 line-clamp-2 mb-4">{content.content}</p>
+        <a 
+          href={content.url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-2.5 bg-gray-50 text-blue-600 font-bold text-sm rounded-xl hover:bg-blue-600 hover:text-white transition group"
+        >
+          {isVideo ? 'Tonton Video' : 'Baca Selengkapnya'}
+          <ExternalLink size={14} />
+        </a>
       </div>
     </div>
   );
@@ -322,39 +209,55 @@ export default function App() {
 
   const missedVisits = useMemo(() => state.ancVisits.filter(v => v.status === 'MISSED'), [state.ancVisits]);
 
-  const handleLogout = () => {
-    setTimeout(() => {
-      if (window.confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
-        setCurrentUser(null);
-        setView('dashboard');
-        setState(prev => ({ ...prev, selectedPatientId: null }));
-        setShowNotificationPanel(false);
-      }
-    }, 10);
+  const handleRegister = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const newUser: User = {
+      id: `u${Date.now()}`,
+      name: formData.get('name') as string,
+      dob: formData.get('dob') as string,
+      address: formData.get('address') as string,
+      pregnancyMonth: parseInt(formData.get('month') as string),
+      pregnancyNumber: parseInt(formData.get('number') as string),
+      medicalHistory: formData.get('history') as string,
+      phone: formData.get('phone') as string,
+      role: UserRole.USER,
+      // Random coords around Pasar Minggu for demo
+      lat: PUSKESMAS_INFO.lat + (Math.random() - 0.5) * 0.02,
+      lng: PUSKESMAS_INFO.lng + (Math.random() - 0.5) * 0.02,
+    };
+
+    setState(prev => ({
+      ...prev,
+      users: [...prev.users, newUser]
+    }));
+
+    alert('Pendaftaran Berhasil! Data pasien telah tersimpan dalam sistem.');
+    setView('patients');
   };
 
-  // Login Simulation
+  const handleLogout = () => {
+    if (window.confirm('Keluar dari sistem?')) {
+      setCurrentUser(null);
+      setView('dashboard');
+    }
+  };
+
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-teal-400 flex items-center justify-center p-6">
         <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 text-center">
-          <div className="inline-block p-4 bg-blue-50 rounded-full mb-6 text-blue-600">
-            <CheckCircle size={48} />
+          <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600">
+            <CheckCircle size={40} />
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-800 mb-2">Smart ANC</h1>
-          <p className="text-gray-500 mb-8">Sistem Monitoring Ibu Hamil Pintar</p>
+          <h1 className="text-3xl font-black text-gray-800 mb-2">Smart ANC</h1>
+          <p className="text-gray-500 mb-8">Puskesmas Pasar Minggu</p>
           <div className="space-y-4">
-            <button onClick={() => setCurrentUser(MOCK_USERS[2])} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-200">
-              Login sebagai Admin
-            </button>
-            <button onClick={() => setCurrentUser(MOCK_USERS[3])} className="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
-              Login sebagai Nakes
-            </button>
-            <button onClick={() => setCurrentUser(MOCK_USERS[0])} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition flex items-center justify-center gap-2 shadow-lg shadow-teal-200">
-              Login sebagai Ibu Hamil
-            </button>
+            <button onClick={() => setCurrentUser(MOCK_USERS[2])} className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Login Admin</button>
+            <button onClick={() => setCurrentUser(MOCK_USERS[3])} className="w-full py-3.5 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition shadow-lg shadow-blue-200">Login Bidan</button>
+            <button onClick={() => setCurrentUser(MOCK_USERS[0])} className="w-full py-3.5 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition shadow-lg shadow-teal-200">Login Ibu Hamil</button>
           </div>
-          <p className="mt-8 text-xs text-gray-400">© 2023 Smart ANC - Puskesmas Pasar Minggu</p>
         </div>
       </div>
     );
@@ -366,151 +269,87 @@ export default function App() {
     switch(view) {
       case 'dashboard': return <Dashboard state={state} patients={state.users.filter(u => u.role === UserRole.USER)} setView={setView} />;
       case 'patients': return <PatientList users={state.users} role={currentUser.role} />;
-      case 'smart-card': return (
-        <div className="space-y-6">
-          {currentUser.role === UserRole.USER ? (
-            <ANCSmartCard user={currentUser} isAdmin={false} />
-          ) : (
-            <div className="space-y-8">
-              <div className="bg-white p-6 rounded-xl border border-gray-100">
-                <h2 className="font-bold text-lg mb-4">Cetak Kartu ANC Pasien</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {state.users.filter(u => u.role === UserRole.USER).map(u => (
-                    <button 
-                      key={u.id}
-                      onClick={() => setState(prev => ({ ...prev, selectedPatientId: u.id }))}
-                      className={`p-4 border rounded-xl text-left transition ${state.selectedPatientId === u.id ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-blue-300'}`}
-                    >
-                      <p className="font-bold">{u.name}</p>
-                      <p className="text-xs text-gray-500">ID: {u.id}</p>
-                    </button>
-                  ))}
+      case 'register': return (
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-blue-600 p-8 text-white">
+              <h2 className="text-2xl font-bold">Formulir Pendaftaran ANC</h2>
+              <p className="opacity-80 text-sm mt-1">Lengkapi data ibu hamil secara akurat untuk monitoring yang lebih baik.</p>
+            </div>
+            <form className="p-8 space-y-6" onSubmit={handleRegister}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h3 className="font-bold text-gray-400 text-xs uppercase tracking-widest">Identitas Dasar</h3>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Nama Lengkap</label>
+                    <input name="name" type="text" required placeholder="Contoh: Siti Rahma" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Tanggal Lahir</label>
+                    <input name="dob" type="date" required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Nomor HP / WhatsApp</label>
+                    <input name="phone" type="tel" required placeholder="08xxxxxxxxxx" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <h3 className="font-bold text-gray-400 text-xs uppercase tracking-widest">Klinis & Kehamilan</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-gray-700">Usia Hamil (Bulan)</label>
+                      <input name="month" type="number" min="1" max="9" required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-gray-700">Hamil Ke- (Gravida)</label>
+                      <input name="number" type="number" min="1" required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Alamat Lengkap (Domisili)</label>
+                    <textarea name="address" required rows={3} placeholder="Jl. Raya No. 123..." className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                  </div>
                 </div>
               </div>
-              {state.selectedPatientId && (
-                <ANCSmartCard 
-                  user={state.users.find(u => u.id === state.selectedPatientId)!} 
-                  isAdmin={currentUser.role === UserRole.ADMIN} 
-                />
-              )}
-            </div>
-          )}
+              
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Riwayat Penyakit / Alergi (Jika ada)</label>
+                <input name="history" type="text" placeholder="Asma, Hipertensi, Alergi Obat, dll." className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+
+              <div className="pt-4">
+                <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center justify-center gap-2">
+                  <UserPlus size={24} /> Simpan Data & Daftarkan Pasien
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       );
       case 'education': return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {EDUCATION_LIST.map(item => (
-            <div key={item.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition">
-              <img src={item.thumbnail} alt={item.title} className="w-full h-48 object-cover" />
-              <div className="p-4">
-                <span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-blue-100 text-blue-600 mb-2 inline-block">
-                  {item.type}
-                </span>
-                <h3 className="font-bold text-gray-800 mb-2">{item.title}</h3>
-                <p className="text-sm text-gray-500 line-clamp-2">{item.content}</p>
-                <button className="mt-4 w-full py-2 bg-gray-50 text-blue-600 font-bold text-sm rounded-lg hover:bg-blue-50 transition">
-                  Pelajari Selengkapnya
-                </button>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {EDUCATION_LIST.map(content => (
+            <EducationCard key={content.id} content={content} />
           ))}
         </div>
       );
       case 'map': return <MapView users={state.users} />;
-      case 'notifications': return (
-        <div className="max-w-3xl mx-auto space-y-4">
-          <h2 className="text-2xl font-bold text-gray-800">Pusat Notifikasi Auto-Flag</h2>
-          <div className="space-y-3">
-            {missedVisits.length > 0 ? missedVisits.map((v) => {
-              const patient = state.users.find(u => u.id === v.patientId);
-              return (
-                <div key={v.id} className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 flex gap-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="bg-red-100 p-3 rounded-xl text-red-600 shrink-0 h-fit">
-                    <AlertCircle size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-bold text-gray-900">Pasien Melewatkan Jadwal</h3>
-                      <span className="text-xs font-medium text-gray-400">{v.scheduledDate}</span>
-                    </div>
-                    <p className="text-gray-600 text-sm mt-1">
-                      <span className="font-bold text-gray-800">{patient?.name}</span> tidak terdeteksi melakukan pendaftaran/kunjungan ANC pada tanggal yang dijadwalkan.
-                    </p>
-                    <div className="mt-4 flex gap-3">
-                      <button 
-                        onClick={() => setView('monitoring')}
-                        className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
-                      >
-                        Lakukan Monitoring
-                      </button>
-                      <button className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200 transition">
-                        Hubungi Pasien
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            }) : (
-              <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-100">
-                <div className="bg-gray-50 p-4 rounded-full inline-block mb-4">
-                  <Bell className="text-gray-300" size={48} />
-                </div>
-                <p className="text-gray-500 font-medium">Tidak ada notifikasi baru saat ini.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-      case 'register': return (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6">Pendaftaran / Input Data Ibu Hamil</h2>
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); alert('Data berhasil disimpan!'); }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Nama Lengkap</label>
-                <input type="text" required className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Tanggal Lahir</label>
-                <input type="date" required className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition">
-              Simpan Data
-            </button>
-          </form>
-        </div>
-      );
-      case 'monitoring': return (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl font-bold mb-4">Fitur Monitoring & Tindak Lanjut</h2>
-          <p className="text-gray-500 mb-8">Menu ini digunakan untuk nakes menginput hasil pemeriksaan (tekanan darah, keluhan, edema, janin) dan tindak lanjut pasca notifikasi auto-flag.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-            <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
-               <h3 className="font-bold text-blue-800 mb-2">Evaluasi Janin</h3>
-               <p className="text-sm text-blue-600">Nakes dapat memonitor pergerakan janin yang diinput oleh ibu atau diperiksa di tempat.</p>
-            </div>
-            <div className="p-6 bg-green-50 rounded-2xl border border-green-100">
-               <h3 className="font-bold text-green-800 mb-2">Penjadwalan ANC</h3>
-               <p className="text-sm text-green-600">Update jadwal kunjungan berikutnya untuk menghindari flag di masa depan.</p>
-            </div>
-          </div>
-        </div>
-      );
       case 'contact': return (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl mx-auto text-center">
-          <div className="inline-block p-4 bg-blue-50 rounded-full mb-6 text-blue-600">
-            <Phone size={48} />
-          </div>
-          <h2 className="text-3xl font-bold mb-4">{PUSKESMAS_INFO.name}</h2>
-          <div className="space-y-4 text-left border-t pt-8">
-            <div className="flex items-start gap-4 p-4">
-              <MapPin size={24} className="text-blue-600 shrink-0" />
-              <p className="text-gray-600">{PUSKESMAS_INFO.address}</p>
+        <div className="max-w-2xl mx-auto bg-white p-10 rounded-3xl shadow-sm border border-gray-100 text-center">
+          <Phone className="mx-auto text-blue-600 mb-6" size={64} />
+          <h2 className="text-3xl font-black text-gray-800 mb-4">{PUSKESMAS_INFO.name}</h2>
+          <div className="space-y-6 text-left border-t pt-10">
+            <div className="flex items-start gap-4">
+              <div className="bg-blue-50 p-3 rounded-xl text-blue-600"><MapPin size={24} /></div>
+              <p className="text-gray-600 font-medium">{PUSKESMAS_INFO.address}</p>
             </div>
-            <div className="flex items-start gap-4 p-4">
-              <Phone size={24} className="text-green-600 shrink-0" />
-              <p className="text-gray-600">{PUSKESMAS_INFO.phone}</p>
+            <div className="flex items-start gap-4">
+              <div className="bg-green-50 p-3 rounded-xl text-green-600"><Phone size={24} /></div>
+              <div>
+                <p className="text-gray-900 font-bold">{PUSKESMAS_INFO.phone}</p>
+                <p className="text-sm text-gray-500">Layanan Darurat & Konsultasi KIA</p>
+              </div>
             </div>
           </div>
         </div>
@@ -519,141 +358,83 @@ export default function App() {
     }
   };
 
+  const MapView = ({ users }: { users: User[] }) => {
+    const mapRef = useRef<HTMLDivElement>(null);
+    const leafletMap = useRef<L.Map | null>(null);
+
+    useEffect(() => {
+      if (mapRef.current && !leafletMap.current) {
+        const map = L.map(mapRef.current).setView([PUSKESMAS_INFO.lat, PUSKESMAS_INFO.lng], 14);
+        leafletMap.current = map;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        const clinicIcon = L.divIcon({
+          html: `<div class="bg-blue-600 p-2 rounded-full border-2 border-white shadow-lg text-white"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div>`,
+          iconSize: [32, 32],
+          className: ''
+        });
+
+        const patientIcon = L.divIcon({
+          html: `<div class="bg-red-500 p-1.5 rounded-full border-2 border-white shadow-md text-white"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></div>`,
+          iconSize: [24, 24],
+          className: ''
+        });
+
+        L.marker([PUSKESMAS_INFO.lat, PUSKESMAS_INFO.lng], { icon: clinicIcon }).addTo(map).bindPopup(PUSKESMAS_INFO.name);
+
+        users.filter(u => u.role === UserRole.USER && u.lat).forEach(p => {
+          L.marker([p.lat!, p.lng!], { icon: patientIcon }).addTo(map).bindPopup(`<b>${p.name}</b><br/>Hamil: ${p.pregnancyMonth} Bln`);
+        });
+      }
+      return () => { if (leafletMap.current) leafletMap.current.remove(); leafletMap.current = null; };
+    }, [users]);
+
+    return (
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+        <h2 className="text-xl font-bold mb-6">Peta Sebaran Ibu Hamil</h2>
+        <div id="map-container" ref={mapRef} className="h-[600px]"></div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className={`no-print fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-100 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`no-print fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-100 transform transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-full flex flex-col p-6">
-          <div className="flex items-center justify-between mb-10">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg text-white">
-                <CheckCircle size={24} />
-              </div>
-              <span className="text-xl font-black text-gray-900">Smart ANC</span>
-            </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden">
-              <X size={24} className="text-gray-400" />
-            </button>
+          <div className="flex items-center gap-3 mb-10">
+            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg shadow-blue-200"><CheckCircle size={28} /></div>
+            <span className="text-2xl font-black tracking-tight">Smart ANC</span>
           </div>
-
           <nav className="flex-1 space-y-1">
             {filteredNav.map((nav) => (
-              <button
-                key={nav.path}
-                onClick={() => setView(nav.path)}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                  view === nav.path ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                {nav.icon}
-                {nav.name}
+              <button key={nav.path} onClick={() => setView(nav.path)} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all ${view === nav.path ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-gray-500 hover:bg-gray-50'}`}>
+                {nav.icon} {nav.name}
               </button>
             ))}
           </nav>
-
-          <div className="mt-auto pt-6 border-t border-gray-100">
-            <div className="flex items-center gap-3 px-4 py-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-                {currentUser.name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">{currentUser.name}</p>
-                <p className="text-xs text-gray-500 capitalize">{currentUser.role.toLowerCase()}</p>
-              </div>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-all"
-            >
-              <LogOut size={20} />
-              Keluar Sesi
+          <div className="mt-auto pt-6 border-t border-gray-50">
+            <button onClick={handleLogout} className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-sm font-bold text-red-500 hover:bg-red-50 transition-all">
+              <LogOut size={20} /> Keluar Sesi
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-72' : 'ml-0'}`}>
-        <header className="no-print h-20 bg-white border-b border-gray-100 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-40">
+      <main className={`flex-1 transition-all ${isSidebarOpen ? 'lg:ml-72' : 'ml-0'}`}>
+        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 sticky top-0 z-40">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 lg:hidden">
-              <Menu size={24} className="text-gray-400" />
-            </button>
-            <h1 className="text-xl font-bold text-gray-800 capitalize">
-              {NAVIGATION.find(n => n.path === view)?.name || 'Dashboard'}
-            </h1>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 lg:hidden"><Menu size={24} /></button>
+            <h1 className="text-lg font-black text-gray-800 capitalize">{NAVIGATION.find(n => n.path === view)?.name || 'Dashboard'}</h1>
           </div>
-          
-          <div className="flex items-center gap-4">
-            {/* Notification Bell (Only for Admin/Nakes) */}
-            {(currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.NAKES) && (
-              <div className="relative">
-                <button 
-                  onClick={() => setShowNotificationPanel(!showNotificationPanel)}
-                  className={`p-2 rounded-full transition-colors relative ${showNotificationPanel ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-50'}`}
-                >
-                  <Bell size={22} />
-                  {missedVisits.length > 0 && (
-                    <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-bounce">
-                      {missedVisits.length}
-                    </span>
-                  )}
-                </button>
-                
-                {/* Mini Dropdown Notification */}
-                {showNotificationPanel && (
-                  <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in duration-200">
-                    <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
-                      <span className="text-sm font-bold text-gray-800">Notifikasi Terkini</span>
-                      <button onClick={() => setShowNotificationPanel(false)}><X size={16} className="text-gray-400" /></button>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {missedVisits.length > 0 ? missedVisits.map(v => (
-                        <div key={v.id} className="p-4 border-b border-gray-50 hover:bg-blue-50/30 transition cursor-pointer" onClick={() => { setView('notifications'); setShowNotificationPanel(false); }}>
-                          <div className="flex gap-3">
-                            <div className="bg-red-100 p-2 rounded-lg text-red-600 shrink-0 h-fit">
-                              <AlertCircle size={16} />
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-gray-900">Jadwal Melewatkan: {state.users.find(u => u.id === v.patientId)?.name}</p>
-                              <p className="text-[11px] text-gray-500 mt-0.5">Sistem auto-flag mendeteksi ketidakhadiran.</p>
-                              <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold">{v.scheduledDate}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )) : (
-                        <div className="p-8 text-center">
-                          <Info size={32} className="mx-auto text-gray-200 mb-2" />
-                          <p className="text-xs text-gray-400">Semua pasien hadir sesuai jadwal.</p>
-                        </div>
-                      )}
-                    </div>
-                    {missedVisits.length > 0 && (
-                      <button 
-                        onClick={() => { setView('notifications'); setShowNotificationPanel(false); }}
-                        className="w-full p-3 text-center text-xs font-bold text-blue-600 bg-white hover:bg-blue-50 transition border-t border-gray-50"
-                      >
-                        Lihat Semua Notifikasi
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <button 
-              onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-              title="Keluar Sesi"
-            >
-              <LogOut size={22} />
-            </button>
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black">{currentUser.name.charAt(0)}</div>
+             <div className="hidden sm:block">
+               <p className="text-sm font-bold leading-none">{currentUser.name}</p>
+               <p className="text-[10px] uppercase font-black text-gray-400 mt-1">{currentUser.role}</p>
+             </div>
           </div>
         </header>
-
-        <div className="p-6 lg:p-10">
-          {renderContent()}
-        </div>
+        <div className="p-8">{renderContent()}</div>
       </main>
     </div>
   );
