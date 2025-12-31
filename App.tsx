@@ -514,10 +514,10 @@ export default function App() {
                 </div>
                 
                 <div className="md:col-span-2 bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100">
-                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2"><MapPin size={14}/> Koordinat Lokasi (Otomatis)</p>
+                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2"><MapPin size={14}/> Koordinat Lokasi (Input Manual/Otomatis)</p>
                   <div className="grid grid-cols-2 gap-6">
-                    <input name="lat" defaultValue={editingPatient?.lat} placeholder="Latitude" className="w-full px-8 py-5 bg-white border-none rounded-[1.5rem] font-bold outline-none" readOnly />
-                    <input name="lng" defaultValue={editingPatient?.lng} placeholder="Longitude" className="w-full px-8 py-5 bg-white border-none rounded-[1.5rem] font-bold outline-none" readOnly />
+                    <input name="lat" defaultValue={editingPatient?.lat} placeholder="Latitude" className="w-full px-8 py-5 bg-white border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-200 transition-all" />
+                    <input name="lng" defaultValue={editingPatient?.lng} placeholder="Longitude" className="w-full px-8 py-5 bg-white border-none rounded-[1.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-200 transition-all" />
                   </div>
                 </div>
 
