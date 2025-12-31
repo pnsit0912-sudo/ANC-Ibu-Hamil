@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle } from 'lucide-react';
+// Added MapPin to the imports from lucide-react
+import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin } from 'lucide-react';
 import { User, ANCVisit } from './types';
 import { getMedicalRecommendation } from './utils';
 
@@ -8,10 +9,11 @@ interface PatientListProps {
   users: User[];
   visits: ANCVisit[];
   onEdit: (u: User) => void;
+  onAddVisit: (u: User) => void;
   searchFilter: string;
 }
 
-export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit, searchFilter }) => {
+export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit, onAddVisit, searchFilter }) => {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   
   const filteredUsers = users.filter(u => 
@@ -22,17 +24,17 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
   return (
     <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-500">
       <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-        <h2 className="font-black text-gray-800 flex items-center gap-2 uppercase">
-          <Users className="text-indigo-600" size={24} /> Database Pasien Terdaftar
+        <h2 className="font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
+          <Users className="text-indigo-600" size={24} /> Manajemen Data & Tindak Lanjut
         </h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b">
-              <th className="px-8 py-5">Pasien</th>
+              <th className="px-8 py-5">Identitas Pasien</th>
               <th className="px-8 py-5">Kondisi Klinis</th>
-              <th className="px-8 py-5">Rekomendasi 10T</th>
+              <th className="px-8 py-5">Pemetaan</th>
               <th className="px-8 py-5 text-center">Tindak Lanjut</th>
               <th className="px-8 py-5 text-center">Aksi</th>
             </tr>
@@ -47,30 +49,35 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
                 <React.Fragment key={u.id}>
                   <tr className="hover:bg-indigo-50/10 transition-colors">
                     <td className="px-8 py-6">
-                      <p className="font-bold text-gray-900">{u.name}</p>
-                      <p className="text-[10px] text-gray-400 font-bold">{u.phone}</p>
+                      <p className="font-bold text-gray-900 leading-tight">{u.name}</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-0.5">{u.phone}</p>
                     </td>
                     <td className="px-8 py-6">
-                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${rec.color}`}>
+                      <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${rec.color}`}>
                         {rec.trimester} ({u.pregnancyMonth} Bln)
                       </span>
-                      <p className="text-[10px] text-gray-500 font-bold mt-1">Gravida: G{u.pregnancyNumber}</p>
+                      <p className="text-[9px] text-gray-500 font-black mt-1.5">G{u.pregnancyNumber} | {u.medicalHistory || 'Tanpa Resiko'}</p>
                     </td>
                     <td className="px-8 py-6">
-                       <ul className="space-y-1">
-                         {rec.actions.slice(0, 2).map((a, i) => (
-                           <li key={i} className="text-[10px] font-bold text-gray-600 flex items-center gap-1.5"><div className="w-1 h-1 bg-indigo-400 rounded-full"/> {a}</li>
-                         ))}
-                       </ul>
+                       <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 italic">
+                         <div className={`w-2 h-2 rounded-full ${u.lat ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                         {u.lat ? `${u.lat.toFixed(4)}, ${u.lng?.toFixed(4)}` : 'Lokasi Belum Set'}
+                       </div>
                     </td>
-                    <td className="px-8 py-6 text-center">
+                    <td className="px-8 py-6 text-center space-x-2">
                       <button 
                         onClick={() => setSelectedHistoryId(isOpen ? null : u.id)}
-                        className={`inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 transform active:scale-95 shadow-md hover:shadow-xl ${
-                          isOpen ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                          isOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100 text-gray-500 hover:bg-indigo-50 hover:text-indigo-600'
                         }`}
                       >
-                        <ClipboardCheck size={16} /> {isOpen ? 'Tutup Data' : 'Tindak Lanjut'}
+                        <History size={14} /> {isOpen ? 'Tutup' : 'Riwayat'}
+                      </button>
+                      <button 
+                        onClick={() => onAddVisit(u)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-emerald-600 shadow-lg shadow-emerald-50 transition-all active:scale-95"
+                      >
+                        <PlusCircle size={14} /> Input Kunjungan
                       </button>
                     </td>
                     <td className="px-8 py-6 text-center">
@@ -84,47 +91,57 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
                             <div className="bg-white rounded-[2.5rem] p-10 border border-gray-100 shadow-sm relative overflow-hidden">
                                <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><Clock size={18} className="text-indigo-500"/> Timeline Pemeriksaan</h4>
                                <div className="space-y-8">
-                                 {userVisits.length > 0 ? userVisits.map(v => (
+                                 {userVisits.length > 0 ? userVisits.slice().reverse().map(v => (
                                    <div key={v.id} className="flex gap-6 border-l-2 border-dashed border-gray-100 pl-8 pb-8 relative last:pb-0">
                                      <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-white shadow-md ${v.status === 'COMPLETED' ? 'bg-green-500' : 'bg-red-500'}`} />
                                      <div className="flex-1">
                                        <div className="flex items-center justify-between mb-3">
-                                         <p className="text-xs font-black text-gray-900">{v.visitDate === '-' ? v.scheduledDate : v.visitDate}</p>
-                                         <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${v.status === 'COMPLETED' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                           {v.status === 'COMPLETED' ? 'Selesai' : 'Terlewat'}
+                                         <p className="text-xs font-black text-gray-900">{v.visitDate}</p>
+                                         <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-green-100 text-green-600`}>
+                                           Selesai
                                          </span>
                                        </div>
                                        <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
-                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase">Tensi</p><p className="text-xs font-bold">{v.bloodPressure || '-'}</p></div>
-                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase">Edema</p><p className={`text-xs font-bold ${v.edema ? 'text-red-500' : 'text-green-600'}`}>{v.edema ? 'Ada' : 'Tidak Ada'}</p></div>
+                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tensi</p><p className="text-xs font-black text-gray-900">{v.bloodPressure}</p></div>
+                                         <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Janin</p><p className="text-xs font-black text-gray-900">{v.fetalMovement}</p></div>
+                                       </div>
+                                       <div className="mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                          <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Tindak Lanjut</p>
+                                          <p className="text-[11px] font-bold text-indigo-900 italic leading-relaxed">"{v.followUp}"</p>
                                        </div>
                                      </div>
                                    </div>
-                                 )) : <p className="text-center py-4 text-gray-400 italic">Data kunjungan kosong.</p>}
+                                 )) : <p className="text-center py-4 text-gray-400 italic font-bold">Belum ada data kunjungan yang diinput.</p>}
                                </div>
                             </div>
 
                             <div className="bg-white rounded-[2.5rem] p-10 border border-gray-100 shadow-sm flex flex-col">
-                               <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><ClipboardCheck size={18} className="text-emerald-500"/> Rangkuman Tindak Lanjut</h4>
-                               <div className="flex-1 overflow-x-auto">
-                                 <table className="w-full text-left">
-                                   <thead className="bg-gray-50 text-[9px] font-black uppercase text-gray-400 border-b">
-                                     <tr><th className="px-4 py-3">Tgl</th><th className="px-4 py-3">Keluhan</th><th className="px-4 py-3">Instruksi Medis</th></tr>
-                                   </thead>
-                                   <tbody className="divide-y divide-gray-50">
-                                     {userVisits.map(v => (
-                                       <tr key={v.id}>
-                                         <td className="px-4 py-4 text-[10px] font-bold">{v.visitDate === '-' ? v.scheduledDate : v.visitDate}</td>
-                                         <td className="px-4 py-4 text-[10px] text-gray-500 italic truncate max-w-[120px]">{v.complaints || '-'}</td>
-                                         <td className="px-4 py-4 text-[10px] font-black text-indigo-600">{v.followUp || '-'}</td>
-                                       </tr>
-                                     ))}
-                                   </tbody>
-                                 </table>
+                               <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-8 flex items-center gap-2"><ClipboardCheck size={18} className="text-emerald-500"/> Detail Alamat & Lokasi</h4>
+                               <div className="flex-1 space-y-6">
+                                  <div className="bg-gray-50 p-6 rounded-3xl">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Alamat Terdaftar</p>
+                                    <p className="text-sm font-bold text-gray-700 leading-relaxed">{u.address}</p>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                     <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Latitude</p>
+                                       <p className="text-xs font-black text-indigo-900">{u.lat || '-'}</p>
+                                     </div>
+                                     <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Longitude</p>
+                                       <p className="text-xs font-black text-indigo-900">{u.lng || '-'}</p>
+                                     </div>
+                                  </div>
                                </div>
-                               <div className="mt-8 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-start gap-4">
-                                  <AlertCircle className="text-indigo-600 mt-1" size={20} />
-                                  <p className="text-[11px] font-medium text-indigo-800/80 leading-relaxed">Pastikan semua tindak lanjut telah dikomunikasikan kepada Ibu {u.name} secara jelas.</p>
+                               <div className="mt-8 p-5 bg-indigo-900 rounded-[2rem] text-white flex items-center justify-between shadow-xl shadow-indigo-100">
+                                  <div className="flex items-center gap-4">
+                                    <MapPin size={24} className="text-indigo-300" />
+                                    <div>
+                                      <p className="text-[10px] font-black uppercase opacity-60">Status Integrasi Peta</p>
+                                      <p className="text-xs font-black">Lokasi Terhubung ke Sistem Pemetaan</p>
+                                    </div>
+                                  </div>
+                                  <div className="w-4 h-4 rounded-full bg-green-400 shadow-lg shadow-green-400/50" />
                                </div>
                             </div>
                          </div>
