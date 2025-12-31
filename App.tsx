@@ -1,12 +1,12 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { UserRole, User, AppState, ANCVisit, SystemLog } from './types';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { UserRole, User, AppState, ANCVisit, SystemLog, SystemAlert } from './types';
 import { MOCK_USERS, PUSKESMAS_INFO, WILAYAH_DATA } from './constants';
 import { RISK_FACTORS_MASTER, calculatePregnancyProgress, getRiskCategory } from './utils';
 import { 
   CheckCircle, AlertCircle, Users, Calendar, AlertTriangle,
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, ArrowUpRight, Activity, TrendingUp,
-  Stethoscope, Thermometer, Droplets, Heart, ClipboardCheck, MapPin, ShieldAlert, ChevronRight, UserCircle, QrCode, BookOpen, Map as MapIcon, RefreshCcw
+  Stethoscope, Thermometer, Droplets, Heart, ClipboardCheck, MapPin, ShieldAlert, ChevronRight, UserCircle, QrCode, BookOpen, Map as MapIcon, RefreshCcw, FileText
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -40,22 +40,82 @@ export default function App() {
       currentUser: null,
       users: MOCK_USERS.map(u => ({...u, selectedRiskFactors: [], totalRiskScore: 0})),
       ancVisits: [],
+      alerts: [],
       selectedPatientId: null,
       logs: []
     };
   });
 
+  // AUTO-FLAG NOTIFICATION ENGINE
+  useEffect(() => {
+    if (!currentUser || currentUser.role === UserRole.USER) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const newAlerts: SystemAlert[] = [];
+    
+    state.users.filter(u => u.role === UserRole.USER).forEach(patient => {
+      const patientVisits = state.ancVisits.filter(v => v.patientId === patient.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
+      const latest = patientVisits[0];
+      const risk = getRiskCategory(patient.totalRiskScore, latest);
+
+      // 1. Deteksi Pasien Darurat (Triase Hitam)
+      if (risk.label === 'HITAM') {
+        const alertId = `emergency-${patient.id}-${today}`;
+        if (!state.alerts.some(a => a.id === alertId)) {
+          newAlerts.push({
+            id: alertId,
+            type: 'EMERGENCY',
+            patientId: patient.id,
+            patientName: patient.name,
+            message: 'Kondisi gawat darurat terdeteksi! Segera lakukan penanganan atau rujukan.',
+            timestamp: new Date().toISOString(),
+            isRead: false
+          });
+        }
+      }
+
+      // 2. Deteksi Pasien Mangkir Kontrol
+      if (latest && latest.nextVisitDate < today && latest.status !== 'COMPLETED') {
+        const alertId = `missed-${patient.id}-${latest.nextVisitDate}`;
+        if (!state.alerts.some(a => a.id === alertId)) {
+          newAlerts.push({
+            id: alertId,
+            type: 'MISSED',
+            patientId: patient.id,
+            patientName: patient.name,
+            message: `Terlambat melakukan kunjungan ANC yang dijadwalkan pada ${latest.nextVisitDate}.`,
+            timestamp: new Date().toISOString(),
+            isRead: false
+          });
+        }
+      }
+    });
+
+    if (newAlerts.length > 0) {
+      setState(prev => ({
+        ...prev,
+        alerts: [...newAlerts, ...prev.alerts].slice(0, 50) // Simpan max 50 notifikasi
+      }));
+    }
+  }, [state.ancVisits, state.users, currentUser]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  // FUNGSI NAVIGASI BERSIH (RESET STATE SAAT PINDAH TABEL/MENU)
   const handleNavigate = (targetView: string) => {
     setEditingPatient(null);
     setIsAddingVisit(null);
     setTempRiskFactors([]);
     setPatientSearch('');
     setView(targetView);
+  };
+
+  const markAlertAsRead = (alertId: string) => {
+    setState(prev => ({
+      ...prev,
+      alerts: prev.alerts.map(a => a.id === alertId ? { ...a, isRead: true } : a)
+    }));
   };
 
   const showNotification = useCallback((message: string) => {
@@ -120,7 +180,6 @@ export default function App() {
     });
 
     if (currentUser?.role === UserRole.ADMIN) {
-      // Statistik Wilayah Dinamis dari state.users asli
       const statsByKelurahan = WILAYAH_DATA["Pasar Minggu"].reduce((acc, kel) => {
         acc[kel] = { total: 0, highRisk: 0 };
         return acc;
@@ -185,11 +244,11 @@ export default function App() {
                 </div>
              </div>
              <div className="bg-slate-950 p-12 rounded-[4rem] text-white flex flex-col justify-center relative overflow-hidden">
-                <h4 className="text-3xl font-black uppercase tracking-tighter mb-4">Cloud Infrastructure</h4>
-                <p className="text-sm text-slate-400 font-bold mb-10">Data pasien terenkripsi AES-256 dan disinkronkan secara real-time dengan server Dinas Kesehatan Jakarta.</p>
+                <h4 className="text-3xl font-black uppercase tracking-tighter mb-4">Sistem Monitoring Mandiri</h4>
+                <p className="text-sm text-slate-400 font-bold mb-10">Data pasien saat ini tersimpan secara lokal dan dioptimalkan untuk integrasi API Cloud di masa mendatang.</p>
                 <div className="flex gap-4">
-                  <div className="px-6 py-3 bg-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">Server: Active</div>
-                  <div className="px-6 py-3 bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">Uptime: 99.9%</div>
+                  <div className="px-6 py-3 bg-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">Storage: LocalStorage</div>
+                  <div className="px-6 py-3 bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">Uptime: 100%</div>
                 </div>
                 <ShieldCheck size={200} className="absolute -right-20 -bottom-20 opacity-5" />
              </div>
@@ -356,6 +415,9 @@ export default function App() {
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
           onSearchChange={setPatientSearch} 
           onLogout={() => setCurrentUser(null)} 
+          alerts={state.alerts}
+          onMarkAsRead={markAlertAsRead}
+          onNavigateToPatient={handleNavigate}
         />
 
         <div className="p-16 max-w-[1600px] mx-auto">
@@ -390,11 +452,6 @@ export default function App() {
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Standarisasi Skor Poedji Rochjati (SPR)</p>
                   </div>
                 </div>
-                {!editingPatient && (
-                   <button type="button" onClick={() => handleNavigate('register')} className="p-4 bg-gray-50 text-gray-400 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center gap-2 text-[10px] font-black uppercase">
-                     <RefreshCcw size={16}/> Reset Form
-                   </button>
-                )}
               </div>
               
               <form onSubmit={handleRegisterSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -535,6 +592,7 @@ export default function App() {
                       edema: f.get('edema') === 'on',
                       fetalMovement: f.get('fetal') as string,
                       followUp: f.get('followup') as string,
+                      nakesNotes: f.get('nakesNotes') as string,
                       nakesId: currentUser?.id || 'sys',
                       status: 'COMPLETED'
                     };
@@ -559,6 +617,13 @@ export default function App() {
                             </label>
                           ))}
                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4 flex items-center gap-2">
+                         <FileText size={14}/> Catatan Tambahan Nakes (Bidan/Dokter)
+                       </label>
+                       <textarea name="nakesNotes" placeholder="Masukkan catatan observasi khusus, anjuran tambahan, atau pesan rahasia nakes untuk tim medis lainnya..." className="w-full p-8 bg-gray-50 rounded-[2.5rem] font-bold outline-none h-32 border-none focus:ring-4 focus:ring-indigo-50 transition-all"></textarea>
                     </div>
 
                     <button type="submit" className="w-full py-6 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-700 hover:scale-[1.01] transition-all">Submit Pemeriksaan</button>

@@ -50,8 +50,19 @@ export interface ANCVisit {
   edema: boolean;
   fetalMovement: string;
   followUp: string;
+  nakesNotes: string; // Tambahan catatan khusus nakes
   nakesId: string;
   status: 'COMPLETED' | 'MISSED' | 'SCHEDULED';
+}
+
+export interface SystemAlert {
+  id: string;
+  type: 'EMERGENCY' | 'MISSED';
+  patientId: string;
+  patientName: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
 }
 
 export interface SystemLog {
@@ -68,13 +79,11 @@ export interface AppState {
   currentUser: User | null;
   users: User[];
   ancVisits: ANCVisit[];
+  alerts: SystemAlert[];
   selectedPatientId: string | null;
   logs: SystemLog[];
 }
 
-/**
- * Added missing EducationContent interface to fix import error in constants.tsx
- */
 export interface EducationContent {
   id: string;
   title: string;
