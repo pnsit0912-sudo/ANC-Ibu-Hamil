@@ -1,8 +1,7 @@
 
 import React, { useState } from 'react';
-// Added MapPin to the imports from lucide-react
-import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin } from 'lucide-react';
-import { User, ANCVisit } from './types';
+import { Users, History, Edit3, Clock, ClipboardCheck, AlertCircle, PlusCircle, MapPin, Eye, EyeOff, Calendar, AlertTriangle, Trash2 } from 'lucide-react';
+import { User, ANCVisit, UserRole } from './types';
 import { getMedicalRecommendation } from './utils';
 
 interface PatientListProps {
@@ -10,16 +9,49 @@ interface PatientListProps {
   visits: ANCVisit[];
   onEdit: (u: User) => void;
   onAddVisit: (u: User) => void;
+  onDeleteVisit: (visitId: string) => void;
+  currentUserRole: UserRole;
   searchFilter: string;
 }
 
-export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit, onAddVisit, searchFilter }) => {
+export const PatientList: React.FC<PatientListProps> = ({ 
+  users, visits, onEdit, onAddVisit, onDeleteVisit, currentUserRole, searchFilter 
+}) => {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [isPrivacyOn, setIsPrivacyOn] = useState(true);
   
   const filteredUsers = users.filter(u => 
     u.role === 'USER' && 
     (u.name.toLowerCase().includes(searchFilter.toLowerCase()) || u.id.includes(searchFilter))
   );
+
+  const maskPhone = (phone: string) => isPrivacyOn ? phone.replace(/(\d{4})\d+(\d{4})/, '$1-XXXX-$2') : phone;
+
+  const getPatientRiskStatus = (userId: string) => {
+    const userVisits = visits.filter(v => v.patientId === userId);
+    const latest = userVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+    
+    if (!latest) return { level: 'LOW', color: 'text-gray-300' };
+
+    const [sys, dia] = (latest.bloodPressure || "0/0").split('/').map(Number);
+    if (sys >= 140 || dia >= 90 || latest.edema) return { level: 'HIGH', color: 'text-red-600' };
+    return { level: 'NORMAL', color: 'text-emerald-500' };
+  };
+
+  const getNextVisit = (userId: string) => {
+    const userVisits = visits.filter(v => v.patientId === userId);
+    if (userVisits.length === 0) return null;
+    return userVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0].nextVisitDate;
+  };
+
+  const isVisitNear = (date: string | null) => {
+    if (!date) return false;
+    const today = new Date();
+    const target = new Date(date);
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 3;
+  };
 
   return (
     <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-500">
@@ -27,14 +59,20 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
         <h2 className="font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
           <Users className="text-indigo-600" size={24} /> Manajemen Data & Tindak Lanjut
         </h2>
+        <button 
+          onClick={() => setIsPrivacyOn(!isPrivacyOn)}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isPrivacyOn ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}
+        >
+          {isPrivacyOn ? <><EyeOff size={14}/> Privacy On</> : <><Eye size={14}/> Privacy Off</>}
+        </button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 tracking-widest border-b">
               <th className="px-8 py-5">Identitas Pasien</th>
-              <th className="px-8 py-5">Kondisi Klinis</th>
-              <th className="px-8 py-5">Pemetaan</th>
+              <th className="px-8 py-5">Status Resiko</th>
+              <th className="px-8 py-5">Kontrol Berikutnya</th>
               <th className="px-8 py-5 text-center">Tindak Lanjut</th>
               <th className="px-8 py-5 text-center">Aksi</th>
             </tr>
@@ -44,25 +82,31 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
               const rec = getMedicalRecommendation(u.pregnancyMonth);
               const userVisits = visits.filter(v => v.patientId === u.id);
               const isOpen = selectedHistoryId === u.id;
+              const nextDate = getNextVisit(u.id);
+              const near = isVisitNear(nextDate);
+              const risk = getPatientRiskStatus(u.id);
 
               return (
                 <React.Fragment key={u.id}>
                   <tr className="hover:bg-indigo-50/10 transition-colors">
                     <td className="px-8 py-6">
                       <p className="font-bold text-gray-900 leading-tight">{u.name}</p>
-                      <p className="text-[10px] text-gray-400 font-bold mt-0.5">{u.phone}</p>
+                      <p className="text-[10px] text-gray-400 font-bold mt-0.5">{maskPhone(u.phone)}</p>
                     </td>
                     <td className="px-8 py-6">
-                      <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${rec.color}`}>
-                        {rec.trimester} ({u.pregnancyMonth} Bln)
-                      </span>
-                      <p className="text-[9px] text-gray-500 font-black mt-1.5">G{u.pregnancyNumber} | {u.medicalHistory || 'Tanpa Resiko'}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                       <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 italic">
-                         <div className={`w-2 h-2 rounded-full ${u.lat ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
-                         {u.lat ? `${u.lat.toFixed(4)}, ${u.lng?.toFixed(4)}` : 'Lokasi Belum Set'}
+                       <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${risk.color}`}>
+                         {risk.level === 'HIGH' ? <AlertTriangle size={14} /> : <div className={`w-2 h-2 rounded-full bg-current`} />}
+                         {risk.level}
                        </div>
+                    </td>
+                    <td className="px-8 py-6">
+                       {nextDate ? (
+                         <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${near ? 'text-red-600 animate-pulse' : 'text-indigo-600'}`}>
+                           <Calendar size={14} /> {nextDate}
+                         </div>
+                       ) : (
+                         <span className="text-[9px] font-bold text-gray-300 italic uppercase tracking-tighter">Belum Terjadwal</span>
+                       )}
                     </td>
                     <td className="px-8 py-6 text-center space-x-2">
                       <button 
@@ -97,9 +141,20 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
                                      <div className="flex-1">
                                        <div className="flex items-center justify-between mb-3">
                                          <p className="text-xs font-black text-gray-900">{v.visitDate}</p>
-                                         <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-green-100 text-green-600`}>
-                                           Selesai
-                                         </span>
+                                         <div className="flex items-center gap-3">
+                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-indigo-100 text-indigo-600`}>
+                                              Kontrol Lanjut: {v.nextVisitDate}
+                                            </span>
+                                            {currentUserRole === UserRole.ADMIN && (
+                                              <button 
+                                                onClick={() => onDeleteVisit(v.id)}
+                                                className="text-red-400 hover:text-red-600 transition-colors"
+                                                title="Hapus Kunjungan"
+                                              >
+                                                <Trash2 size={14} />
+                                              </button>
+                                            )}
+                                         </div>
                                        </div>
                                        <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
                                          <div><p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Tensi</p><p className="text-xs font-black text-gray-900">{v.bloodPressure}</p></div>
@@ -120,7 +175,7 @@ export const PatientList: React.FC<PatientListProps> = ({ users, visits, onEdit,
                                <div className="flex-1 space-y-6">
                                   <div className="bg-gray-50 p-6 rounded-3xl">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Alamat Terdaftar</p>
-                                    <p className="text-sm font-bold text-gray-700 leading-relaxed">{u.address}</p>
+                                    <p className="text-sm font-bold text-gray-700 leading-relaxed">{isPrivacyOn ? 'Alamat disembunyikan (Privacy On)' : u.address}</p>
                                   </div>
                                   <div className="grid grid-cols-2 gap-4">
                                      <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">

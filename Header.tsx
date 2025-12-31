@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Menu, Search, LogOut } from 'lucide-react';
+import { Menu, Search, LogOut, CloudSync, CloudLightning, RefreshCw } from 'lucide-react';
 import { UserRole } from './types';
 
 interface HeaderProps {
@@ -10,10 +10,11 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   onSearchChange: (value: string) => void;
   onLogout: () => void;
+  isSyncing?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
-  title, userName, userRole, onToggleSidebar, onSearchChange, onLogout 
+  title, userName, userRole, onToggleSidebar, onSearchChange, onLogout, isSyncing 
 }) => (
   <header className="no-print h-32 bg-white/70 backdrop-blur-2xl border-b border-gray-100 flex items-center justify-between px-16 sticky top-0 z-40">
     <div className="flex items-center gap-10">
@@ -25,7 +26,14 @@ export const Header: React.FC<HeaderProps> = ({
       </button>
       <div>
         <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase leading-none">{title}</h1>
-        <p className="text-[10px] font-black text-indigo-400 mt-1 uppercase tracking-widest">ANC Monitoring Control</p>
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">ANC Monitoring Control</p>
+          <span className="w-1 h-1 rounded-full bg-gray-300" />
+          <div className={`flex items-center gap-1 text-[9px] font-black uppercase transition-all ${isSyncing ? 'text-blue-500' : 'text-emerald-500'}`}>
+             {isSyncing ? <RefreshCw size={10} className="animate-spin" /> : <CloudLightning size={10} />}
+             {isSyncing ? 'Syncing...' : 'Connected'}
+          </div>
+        </div>
       </div>
     </div>
     <div className="flex items-center gap-6">

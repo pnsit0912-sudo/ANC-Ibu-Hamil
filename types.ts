@@ -17,7 +17,7 @@ export interface User {
   medicalHistory: string;
   role: UserRole;
   phone: string;
-  isActive: boolean; // Fitur Baru: Kontrol Akses
+  isActive: boolean;
 }
 
 export interface ANCVisit {
@@ -25,6 +25,7 @@ export interface ANCVisit {
   patientId: string;
   visitDate: string;
   scheduledDate: string;
+  nextVisitDate: string; // Fitur Baru: Tanggal Kunjungan Selanjutnya
   bloodPressure: string;
   complaints: string;
   edema: boolean;
@@ -34,13 +35,23 @@ export interface ANCVisit {
   status: 'COMPLETED' | 'MISSED' | 'SCHEDULED';
 }
 
+export interface SystemLog {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  action: string;
+  module: string;
+  details: string;
+}
+
 export interface EducationContent {
   id: string;
   title: string;
   type: 'TEXT' | 'VIDEO' | 'IMAGE';
   content: string;
   thumbnail: string;
-  url?: string;
+  url: string;
 }
 
 export interface AppState {
@@ -48,4 +59,5 @@ export interface AppState {
   users: User[];
   ancVisits: ANCVisit[];
   selectedPatientId: string | null;
+  logs: SystemLog[];
 }
