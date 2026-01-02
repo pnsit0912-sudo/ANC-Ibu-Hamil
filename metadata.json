@@ -2,7 +2,6 @@
   "name": "Copy of Smart ANC - Sistem Monitoring Ibu Hamil",
   "description": "Sistem informasi antenatal care cerdas dengan kartu ANC pintar, monitoring nakes, pemetaan lokasi, dan edukasi kesehatan ibu hamil.",
   "requestFramePermissions": [
-    "camera",
     "geolocation"
   ]
 }

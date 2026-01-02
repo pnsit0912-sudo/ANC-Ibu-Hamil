@@ -23,12 +23,13 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
   const risk = getRiskCategory(patient.totalRiskScore, latestVisit);
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20">
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700 p-6 md:p-12">
       {/* Header Profile */}
-      <div className="bg-white p-8 md:p-12 rounded-[3.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden">
+      <div className="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden">
         <button 
           onClick={onClose}
-          className="absolute top-8 right-8 p-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl transition-all"
+          className="absolute top-8 right-8 p-3 bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-2xl transition-all z-20"
+          title="Tutup Profil"
         >
           <X size={20} />
         </button>
@@ -42,7 +43,7 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
             <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
               <span className="px-4 py-1.5 bg-gray-100 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-widest">G{patient.pregnancyNumber} P{patient.parityP} A{patient.parityA}</span>
               <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${risk.color}`}>Triase {risk.label}</span>
-              <span className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Skor: {patient.totalRiskScore + 2}</span>
+              <span className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Skor Dasar: {patient.totalRiskScore + 2}</span>
             </div>
           </div>
         </div>
@@ -114,7 +115,7 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between">
             <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3">
-              <ClipboardCheck size={28} className="text-indigo-600" /> Riwayat Tindak Lanjut ANC
+              <ClipboardCheck size={28} className="text-indigo-600" /> Riwayat Pemeriksaan ANC
             </h3>
           </div>
 
@@ -126,7 +127,7 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
               </div>
             ) : (
               patientVisits.map((visit, idx) => (
-                <div key={visit.id} className="bg-white rounded-[3.5rem] shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-right-10" style={{ animationDelay: `${idx * 100}ms` }}>
+                <div key={visit.id} className="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-right-10" style={{ animationDelay: `${idx * 100}ms` }}>
                   {/* Visit Header */}
                   <div className="bg-gray-50/50 px-10 py-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
@@ -183,7 +184,7 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
 
                        <div className="space-y-4">
                           <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2 underline decoration-indigo-200"><Info size={14}/> Tindak Lanjut & Rencana (Plan)</h4>
-                          <div className={`p-6 rounded-[2.5rem] border-2 shadow-sm ${
+                          <div className={`p-6 rounded-[2rem] border-2 shadow-sm ${
                             visit.followUp === 'RUJUK_RS' ? 'bg-red-600 border-red-700 text-white' : 
                             visit.followUp === 'KONSUL_DOKTER' ? 'bg-yellow-50 border-yellow-200 text-yellow-900' :
                             'bg-indigo-50 border-indigo-100 text-indigo-900'

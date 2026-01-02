@@ -1,8 +1,10 @@
+
 import React, { useMemo, useState } from 'react';
 import { 
   AlertTriangle, Activity, ClipboardList, TrendingUp, 
   Search, Filter, Stethoscope, Heart, AlertCircle, ShieldAlert,
-  ArrowRight, CheckCircle2, Info, MapPin, BarChart3, PieChart
+  ArrowRight, CheckCircle2, Info, MapPin, BarChart3, PieChart,
+  CalendarDays, ChevronDown, Download, FileSpreadsheet, X
 } from 'lucide-react';
 import { User, ANCVisit, AppState, UserRole } from './types';
 import { WILAYAH_DATA } from './constants';
@@ -15,46 +17,68 @@ interface RiskMonitoringProps {
   onToggleVisitStatus: (visitId: string) => void;
 }
 
-// Added type for statistical data to fix 'unknown' errors during object iteration
 type StatData = { total: number, hitam: number, merah: number, kuning: number, hijau: number };
 
 export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit, onToggleVisitStatus }) => {
   const { users, ancVisits } = state;
   const [filterKelurahan, setFilterKelurahan] = useState<string>('ALL');
+  
+  // State Filter Waktu
+  const currentYear = new Date().getFullYear().toString();
+  const [filterYear, setFilterYear] = useState<string>(currentYear);
+  const [filterQuarter, setFilterQuarter] = useState<string>('ALL'); // ALL, 1, 2, 3, 4
 
-  // Integrasi Skoring Terpusat
+  // Mendapatkan daftar tahun yang tersedia dari data kunjungan
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    years.add(currentYear);
+    ancVisits.forEach(v => years.add(new Date(v.visitDate).getFullYear().toString()));
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [ancVisits, currentYear]);
+
+  // Filter Kunjungan Berdasarkan Waktu
+  const filteredVisitsByPeriod = useMemo(() => {
+    return ancVisits.filter(v => {
+      const date = new Date(v.visitDate);
+      const year = date.getFullYear().toString();
+      const month = date.getMonth(); // 0-11
+      const quarter = Math.floor(month / 3) + 1; // 1-4
+
+      const matchYear = filterYear === 'ALL' || year === filterYear;
+      const matchQuarter = filterQuarter === 'ALL' || quarter.toString() === filterQuarter;
+
+      return matchYear && matchQuarter;
+    });
+  }, [ancVisits, filterYear, filterQuarter]);
+
+  // Integrasi Skoring & Analisis Berdasarkan Periode Terpilih
   const riskAnalysis = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    // Kita hanya mengambil pasien yang memiliki kunjungan di periode tersebut
+    // ATAU jika 'ALL' dipilih, ambil semua pasien aktif
+    const patientIdsInPeriod = new Set(filteredVisitsByPeriod.map(v => v.patientId));
     
     return users
       .filter(u => u.role === UserRole.USER)
+      .filter(u => (filterYear === 'ALL' && filterQuarter === 'ALL') ? true : patientIdsInPeriod.has(u.id))
       .map(patient => {
-        const patientVisits = ancVisits.filter(v => v.patientId === patient.id);
-        const latestVisit = patientVisits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
+        const periodVisits = filteredVisitsByPeriod.filter(v => v.patientId === patient.id);
+        const latestVisitInPeriod = periodVisits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
         
-        // GUNAKAN FUNGSI PUSAT (utils.ts)
-        const risk = getRiskCategory(patient.totalRiskScore, latestVisit);
+        const risk = getRiskCategory(patient.totalRiskScore, latestVisitInPeriod);
         
         let riskFlags: string[] = [];
-
-        // Deteksi Flag Tambahan untuk Tampilan Monitoring
-        if (latestVisit?.nextVisitDate && latestVisit.nextVisitDate < today) {
-           riskFlags.push('KUNJUNGAN TERLAMBAT');
-        }
-        if (latestVisit?.bloodPressure) {
-          const [sys, dia] = latestVisit.bloodPressure.split('/').map(Number);
+        if (latestVisitInPeriod?.bloodPressure) {
+          const [sys, dia] = latestVisitInPeriod.bloodPressure.split('/').map(Number);
           if (sys >= 140 || dia >= 90) riskFlags.push('Hipertensi');
         }
-        if (latestVisit?.fetalMovement === 'Kurang Aktif') riskFlags.push('Gerak Janin ↓');
-        if (latestVisit?.edema) riskFlags.push('Edema (+)');
+        if (latestVisitInPeriod?.fetalMovement === 'Kurang Aktif') riskFlags.push('Gerak Janin ↓');
+        if (latestVisitInPeriod?.edema) riskFlags.push('Edema (+)');
 
-        return { ...patient, riskLevel: risk.label, riskFlags, latestVisit, priority: risk.priority };
+        return { ...patient, riskLevel: risk.label, riskFlags, latestVisit: latestVisitInPeriod, priority: risk.priority };
       });
-  }, [users, ancVisits]);
+  }, [users, filteredVisitsByPeriod, filterYear, filterQuarter]);
 
-  // Agregasi Statistik Wilayah
   const statsAggregation = useMemo(() => {
-    // Fix: Explicitly typed Record with StatData to assist compiler inference
     const kecStats: Record<string, StatData> = {};
     const kelStats: Record<string, StatData> = {};
 
@@ -87,9 +111,145 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
     filterKelurahan === 'ALL' || p.kelurahan === filterKelurahan
   ).sort((a, b) => (a.priority || 0) - (b.priority || 0));
 
+  // Fungsi Tarik Data (Ekspor CSV)
+  const handleExportReport = () => {
+    const headers = [
+      'Nama Pasien', 'NIK/ID', 'Kelurahan', 'Status Risiko', 'Skor Dasar', 
+      'TD Terakhir', 'Tgl Periksa Terakhir', 'Bendera Risiko'
+    ];
+
+    const rows = filteredRiskList.map(p => [
+      `"${p.name}"`,
+      `"${p.id}"`,
+      `"${p.kelurahan}"`,
+      p.riskLevel,
+      p.totalRiskScore + 2,
+      `"${p.latestVisit?.bloodPressure || '-'}"`,
+      p.latestVisit?.visitDate || '-',
+      // Fix: cast riskFlags to string[] to ensure join is available
+      `"${((p.riskFlags as string[]).join('; '))}"`
+    ].join(','));
+
+    // Fix: Pastikan semua elemen di summary adalah array sebelum diproses .join(',')
+    const summary: any[][] = [
+      ['LAPORAN MONITORING RISIKO ANC'],
+      [`Periode: ${filterYear === 'ALL' ? 'Semua Tahun' : filterYear} - ${filterQuarter === 'ALL' ? 'Tahunan' : 'Triwulan ' + filterQuarter}`],
+      [`Wilayah: ${filterKelurahan === 'ALL' ? 'Seluruh Kelurahan' : filterKelurahan}`],
+      [],
+      ['RINGKASAN STATISTIK'],
+      ['Kategori', 'Jumlah'],
+      ['Kritis (Hitam)', riskAnalysis.filter(p => p.riskLevel === 'HITAM').length],
+      ['Tinggi (Merah)', riskAnalysis.filter(p => p.riskLevel === 'MERAH').length],
+      ['Sedang (Kuning)', riskAnalysis.filter(p => p.riskLevel === 'KUNING').length],
+      ['Stabil (Hijau)', riskAnalysis.filter(p => p.riskLevel === 'HIJAU').length],
+      ['Total Pasien Dalam Periode', riskAnalysis.length],
+      [],
+      ['DATA DETAIL PASIEN PRIORITAS'],
+      headers // Fix: Headers harus berupa array, bukan string hasil join
+    ];
+
+    const csvContent = summary.map(r => r.join(',')).join('\n') + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Laporan_Monitoring_ANC_${filterYear}_Q${filterQuarter}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      {/* 1. Dashboard Ringkasan Eksekutif */}
+      {/* Kontrol Filter Global (Waktu & Lokasi) */}
+      <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-xl border border-white flex flex-col xl:flex-row items-center justify-between gap-8">
+        <div className="flex items-center gap-6">
+          <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-lg shadow-indigo-100">
+            <CalendarDays size={24} />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Periode Monitoring</h2>
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Sesuaikan Waktu Tarik Data</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+          {/* Filter Tahun */}
+          <div className="flex-1 md:flex-none">
+            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Tahun</label>
+            <div className="relative">
+              <select 
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="w-full md:w-40 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
+              >
+                <option value="ALL">Semua Tahun</option>
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Filter Triwulan */}
+          <div className="flex-1 md:flex-none">
+            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Triwulan</label>
+            <div className="relative">
+              <select 
+                value={filterQuarter}
+                onChange={(e) => setFilterQuarter(e.target.value)}
+                className="w-full md:w-56 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
+              >
+                <option value="ALL">Semua Triwulan (Tahunan)</option>
+                <option value="1">Triwulan I (Jan - Mar)</option>
+                <option value="2">Triwulan II (Apr - Jun)</option>
+                <option value="3">Triwulan III (Jul - Sep)</option>
+                <option value="4">Triwulan IV (Okt - Des)</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Filter Kelurahan */}
+          <div className="flex-1 md:flex-none">
+            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Wilayah</label>
+            <div className="relative">
+              <select 
+                value={filterKelurahan} 
+                onChange={(e) => setFilterKelurahan(e.target.value)}
+                className="w-full md:w-56 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
+              >
+                <option value="ALL">Seluruh Kelurahan</option>
+                {WILAYAH_DATA["Pasar Minggu"].map(kel => <option key={kel} value={kel}>{kel}</option>)}
+              </select>
+              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Tombol Tarik Data */}
+          <div className="flex-1 md:flex-none pt-4 xl:pt-0">
+             <button 
+               onClick={handleExportReport}
+               className="w-full xl:w-auto px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
+             >
+               <FileSpreadsheet size={16} /> Tarik Data CSV
+             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tampilan Status Periode Aktif */}
+      <div className="flex items-center gap-4 animate-in slide-in-from-left-4">
+        <div className="h-px flex-1 bg-gray-100" />
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">
+          Data Aktif: {filterYear === 'ALL' ? 'Semua Tahun' : filterYear} 
+          {filterQuarter !== 'ALL' && ` - Triwulan ${filterQuarter}`}
+        </p>
+        <div className="h-px flex-1 bg-gray-100" />
+      </div>
+
+      {/* Dashboard Ringkasan Eksekutif */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Kritis (Hitam)', count: riskAnalysis.filter(p => p.riskLevel === 'HITAM').length, color: 'bg-slate-950', text: 'text-white' },
@@ -107,7 +267,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         ))}
       </div>
 
-      {/* 2. Visualisasi Analitik */}
+      {/* Visualisasi Analitik */}
       <div className="space-y-8">
         <div className="flex items-center gap-3">
           <BarChart3 className="text-indigo-600" size={28} />
@@ -125,7 +285,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
 
               <div className="space-y-8">
                 {Object.entries(statsAggregation.kecStats).map(([kec, untypedStat]) => {
-                  // Fix: Casting untypedStat to StatData to resolve 'unknown' property access errors
                   const stat = untypedStat as StatData;
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
@@ -135,7 +294,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                       <div className="flex justify-between items-end">
                         <div>
                           <p className="text-xl font-black text-gray-900 tracking-tighter">{kec}</p>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase">Total: {stat.total} Pasien</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase">Total: {stat.total} Pasien Terlayani</p>
                         </div>
                         <div className="text-right">
                           <p className={`text-2xl font-black ${density > 30 ? 'text-red-600' : 'text-indigo-600'}`}>{density.toFixed(1)}%</p>
@@ -167,7 +326,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(statsAggregation.kelStats).map(([kel, untypedStat]) => {
-                  // Fix: Casting untypedStat to StatData to resolve 'unknown' property access errors
                   const stat = untypedStat as StatData;
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
@@ -177,7 +335,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                       <div className="flex justify-between items-start mb-6">
                         <div>
                           <p className="font-black text-gray-900 text-sm uppercase leading-none mb-1">{kel}</p>
-                          <p className="text-[9px] font-black text-gray-400 uppercase">Total: {stat.total}</p>
+                          <p className="text-[9px] font-black text-gray-400 uppercase">Pelayanan: {stat.total}</p>
                         </div>
                         <div className="text-right">
                           <p className={`text-xl font-black ${density > 20 ? 'text-red-600' : 'text-indigo-600'}`}>{density.toFixed(0)}%</p>
@@ -199,7 +357,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                                 style={{ width: stat.total > 0 ? `${(bar.val / stat.total) * 100}%` : '0%' }}
                               />
                             </div>
-                            <div className="w-4 text-[9px] font-black text-gray-900 text-right">{stat.val}</div>
+                            <div className="w-4 text-[9px] font-black text-gray-900 text-right">{bar.val}</div>
                           </div>
                         ))}
                       </div>
@@ -212,91 +370,76 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         </div>
       </div>
 
-      {/* 3. Monitoring Pasien Prioritas (Detail) */}
+      {/* Monitoring Pasien Prioritas (Detail) */}
       <div className="space-y-8">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3">
-              <Heart size={28} className="text-red-600" /> Daftar Pantau Terpadu
-            </h3>
-            <div className="bg-white p-2 rounded-xl border border-gray-100 flex items-center gap-2 shadow-sm">
-              <Filter size={14} className="text-gray-400 ml-2" />
-              <select 
-                value={filterKelurahan} 
-                onChange={(e) => setFilterKelurahan(e.target.value)}
-                className="bg-transparent text-[10px] font-black uppercase outline-none pr-4 cursor-pointer"
-              >
-                <option value="ALL">Seluruh Wilayah</option>
-                {WILAYAH_DATA["Pasar Minggu"].map(kel => <option key={kel} value={kel}>{kel}</option>)}
-              </select>
-            </div>
+          <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3">
+            <Heart size={28} className="text-red-600" /> Daftar Pantau Terpadu ({filteredRiskList.length} Pasien)
+          </h3>
+        </div>
+
+        {filteredRiskList.length === 0 ? (
+          <div className="bg-white p-20 rounded-[4rem] border-4 border-dashed border-gray-100 text-center">
+            <Activity size={48} className="mx-auto text-gray-100 mb-4" />
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">Tidak Ada Data Pasien Untuk Periode Ini</p>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredRiskList.map(p => (
+              <div 
+                key={p.id} 
+                className={`group relative p-8 rounded-[3.5rem] border-2 transition-all hover:scale-[1.02] hover:shadow-2xl ${
+                  p.riskLevel === 'HITAM' ? 'bg-slate-950 border-slate-900 text-white shadow-slate-200' : 
+                  p.riskLevel === 'MERAH' ? 'bg-red-50 border-red-100' : 
+                  p.riskLevel === 'KUNING' ? 'bg-yellow-50 border-yellow-100' : 
+                  'bg-white border-gray-50'
+                }`}
+              >
+                <div className="mb-6">
+                  <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border ${
+                    p.riskLevel === 'HITAM' ? 'bg-white/10 border-white/20 text-red-400' : 
+                    p.riskLevel === 'MERAH' ? 'bg-red-500 border-red-600 text-white' : 
+                    p.riskLevel === 'KUNING' ? 'bg-yellow-400 border-yellow-500 text-yellow-950' : 
+                    'bg-emerald-500 border-emerald-600 text-white'
+                  }`}>
+                    Triase {p.riskLevel}
+                  </span>
+                  <p className={`text-[9px] font-bold uppercase tracking-[0.2em] mt-3 ${p.riskLevel === 'HITAM' ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Kelurahan {p.kelurahan}
+                  </p>
+                </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredRiskList.map(p => (
-            <div 
-              key={p.id} 
-              className={`group relative p-8 rounded-[3.5rem] border-2 transition-all hover:scale-[1.02] hover:shadow-2xl ${
-                p.riskLevel === 'HITAM' ? 'bg-slate-950 border-slate-900 text-white shadow-slate-200' : 
-                p.riskLevel === 'MERAH' ? 'bg-red-50 border-red-100' : 
-                p.riskLevel === 'KUNING' ? 'bg-yellow-50 border-yellow-100' : 
-                'bg-white border-gray-50'
-              }`}
-            >
-              <div className="mb-6">
-                <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border ${
-                  p.riskLevel === 'HITAM' ? 'bg-white/10 border-white/20 text-red-400' : 
-                  p.riskLevel === 'MERAH' ? 'bg-red-500 border-red-600 text-white' : 
-                  p.riskLevel === 'KUNING' ? 'bg-yellow-400 border-yellow-500 text-yellow-950' : 
-                  'bg-emerald-500 border-emerald-600 text-white'
-                }`}>
-                  Triase {p.riskLevel}
-                </span>
-                <p className={`text-[9px] font-bold uppercase tracking-[0.2em] mt-3 ${p.riskLevel === 'HITAM' ? 'text-slate-500' : 'text-gray-400'}`}>
-                  Kelurahan {p.kelurahan}
-                </p>
-              </div>
+                <div className="mb-6">
+                  <h4 className={`text-2xl font-black leading-tight tracking-tighter ${p.riskLevel === 'HITAM' ? 'text-white' : 'text-gray-900'}`}>
+                    {p.name}
+                  </h4>
+                  <p className={`text-[10px] font-bold mt-1 ${p.riskLevel === 'HITAM' ? 'text-slate-400' : 'text-gray-500'}`}>
+                     Pemeriksaan Terakhir: {p.latestVisit?.visitDate || 'Baru Terdaftar'}
+                  </p>
+                </div>
 
-              <div className="mb-6">
-                <h4 className={`text-2xl font-black leading-tight tracking-tighter ${p.riskLevel === 'HITAM' ? 'text-white' : 'text-gray-900'}`}>
-                  {p.name}
-                </h4>
-                <p className={`text-[10px] font-bold mt-1 ${p.riskLevel === 'HITAM' ? 'text-slate-400' : 'text-gray-500'}`}>
-                   Skor Dasar: {p.totalRiskScore + 2}
-                </p>
-              </div>
-
-              <div className={`space-y-3 p-5 rounded-[1.5rem] mb-8 ${p.riskLevel === 'HITAM' ? 'bg-white/5 border border-white/10' : 'bg-white/50 border border-current/5'}`}>
-                 <div className="flex flex-wrap gap-2">
-                   <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-white/10' : 'bg-indigo-50 text-indigo-600'}`}>
-                     TD: {p.latestVisit?.bloodPressure || 'N/A'}
-                   </span>
-                   {p.riskFlags.map((flag, idx) => (
-                     <span key={idx} className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-red-900/30 text-red-300' : 'bg-red-50 text-red-600'}`}>
-                       {flag}
+                <div className={`space-y-3 p-5 rounded-[1.5rem] mb-8 ${p.riskLevel === 'HITAM' ? 'bg-white/5 border border-white/10' : 'bg-white/50 border border-current/5'}`}>
+                   <div className="flex flex-wrap gap-2">
+                     <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-white/10' : 'bg-indigo-50 text-indigo-600'}`}>
+                       TD: {p.latestVisit?.bloodPressure || 'N/A'}
                      </span>
-                   ))}
-                   {p.riskFlags.length === 0 && (
-                     <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black flex items-center gap-1">
-                       <CheckCircle2 size={10} /> Stabil
-                     </span>
-                   )}
-                 </div>
-              </div>
+                     {(p.riskFlags as string[]).map((flag, idx) => (
+                       <span key={idx} className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-red-900/30 text-red-300' : 'bg-red-50 text-red-600'}`}>
+                         {flag}
+                       </span>
+                     ))}
+                   </div>
+                </div>
 
-              <div className="flex gap-3">
-                <button onClick={() => onViewProfile(p.id)} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white text-slate-900' : 'bg-indigo-600 text-white'}`}>Profil Medis</button>
-                <button onClick={() => onAddVisit(p)} className={`p-4 rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-400'}`}><Activity size={18}/></button>
+                <div className="flex gap-3">
+                  <button onClick={() => onViewProfile(p.id)} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white text-slate-900' : 'bg-indigo-600 text-white'}`}>Profil Medis</button>
+                  <button onClick={() => onAddVisit(p)} className={`p-4 rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-400'}`}><Activity size={18}/></button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 };
-
-const CheckCircle2 = ({ size }: { size: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
-);

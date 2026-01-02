@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Users, Edit3, Calendar, AlertTriangle, Trash2, Baby, Phone, CheckCircle2, AlertCircle, Clock, Activity, ShieldAlert, ChevronRight, MapPin, Download } from 'lucide-react';
+import { Users, Edit3, Calendar, AlertTriangle, Trash2, Baby, Phone, CheckCircle2, AlertCircle, Clock, Activity, ShieldAlert, ChevronRight, MapPin, Download, Eye } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
 import { getRiskCategory } from './utils';
 
@@ -9,6 +9,7 @@ interface PatientListProps {
   visits: ANCVisit[];
   onEdit: (u: User) => void;
   onAddVisit: (u: User) => void;
+  onViewProfile: (userId: string) => void;
   onDeletePatient: (userId: string) => void;
   onDeleteVisit: (visitId: string) => void;
   onToggleVisitStatus: (visitId: string) => void;
@@ -17,7 +18,7 @@ interface PatientListProps {
 }
 
 export const PatientList: React.FC<PatientListProps> = ({ 
-  users, visits, onEdit, onAddVisit, onDeletePatient, searchFilter, currentUserRole 
+  users, visits, onEdit, onAddVisit, onViewProfile, onDeletePatient, searchFilter, currentUserRole 
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const today = new Date().toISOString().split('T')[0];
@@ -138,8 +139,9 @@ export const PatientList: React.FC<PatientListProps> = ({
                   </td>
                   <td className="px-6 md:px-12 py-4 md:py-9 text-center">
                     <div className="flex items-center justify-center gap-2 md:gap-3">
-                       <button onClick={() => onAddVisit(u)} className="p-3 md:p-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl shadow-lg"><Activity size={16}/></button>
-                       <button onClick={() => onEdit(u)} className="p-3 md:p-4 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl"><Edit3 size={16}/></button>
+                       <button onClick={() => onViewProfile(u.id)} className="p-3 md:p-4 bg-gray-100 text-gray-400 rounded-xl md:rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all" title="Lihat Profil"><Eye size={16}/></button>
+                       <button onClick={() => onAddVisit(u)} className="p-3 md:p-4 bg-indigo-600 text-white rounded-xl md:rounded-2xl shadow-lg hover:bg-indigo-700 transition-all" title="Input ANC"><Activity size={16}/></button>
+                       <button onClick={() => onEdit(u)} className="p-3 md:p-4 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl hover:bg-gray-50 transition-all" title="Edit Data"><Edit3 size={16}/></button>
                     </div>
                   </td>
                 </tr>

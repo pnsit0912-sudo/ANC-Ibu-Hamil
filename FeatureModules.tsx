@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid, MessageSquare, Send, CheckCircle, Camera } from 'lucide-react';
+import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
 import { User, AppState, EducationContent } from './types';
@@ -38,23 +38,18 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
               <h1 className="text-4xl font-black text-indigo-900 tracking-tighter uppercase leading-none">KARTU ANC PINTAR</h1>
               <p className="text-[10px] font-black text-indigo-400 tracking-[0.4em] uppercase mt-2">Sistem Integrasi Puskesmas</p>
               <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">
-                <ShieldCheck size={12} /> Login Otomatis Aktif
+                <ShieldCheck size={12} /> Terverifikasi Medis
               </div>
             </div>
             <div className="w-full space-y-5 border-t-2 border-dashed border-gray-100 pt-10">
               <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Nama Pasien</span><span className="font-black text-gray-900 uppercase text-lg">{patientToDisplay.name}</span></div>
               <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Identitas</span><span className="font-black text-gray-900 uppercase">G{patientToDisplay.pregnancyNumber} | {patientToDisplay.pregnancyMonth} Bulan</span></div>
-              <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">ID Unik</span><span className="font-black text-indigo-600 text-xs">{patientToDisplay.id}</span></div>
+              <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Puskesmas</span><span className="font-black text-gray-900 text-xs">{PUSKESMAS_INFO.name}</span></div>
             </div>
           </div>
-          <div className="mt-10 bg-gray-900 p-8 rounded-[2.5rem] text-white flex flex-col items-center text-center gap-4 no-print">
-            <div className="bg-white/10 p-3 rounded-2xl">
-               <Camera size={24} className="text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Fitur Login Cepat</p>
-              <p className="text-[11px] font-bold mt-1">Cetak kartu ini dan gunakan fitur 'Scan Kartu' di halaman login untuk masuk secara otomatis.</p>
-            </div>
+          <div className="mt-10 bg-gray-900 p-6 rounded-[2.5rem] text-white flex items-center justify-between">
+            <div><p className="text-[8px] font-black uppercase opacity-40">Update Terakhir</p><p className="text-[10px] font-bold">Terintegrasi Cloud</p></div>
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /><span className="text-[9px] font-black">SISTEM AKTIF</span></div>
           </div>
         </div>
       )}
