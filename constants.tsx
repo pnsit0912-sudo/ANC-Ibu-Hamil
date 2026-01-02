@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { UserRole, User, EducationContent } from './types';
+import { UserRole, User, EducationContent, ANCVisit } from './types';
 import { LayoutDashboard, Users, UserPlus, BookOpen, MapPin, QrCode, Phone, ShieldCheck, Map as MapIcon } from 'lucide-react';
 
 export const PUSKESMAS_INFO = {
@@ -149,29 +149,6 @@ export const MOCK_USERS: User[] = [
     totalRiskScore: 16
   },
   {
-    id: 'u5',
-    username: 'anisa',
-    password: 'u5',
-    name: 'Anisa Rahma',
-    dob: '1998-02-12',
-    address: 'Jl. Ragunan No. 12',
-    kecamatan: 'Pasar Minggu',
-    kelurahan: 'Ragunan',
-    lat: -6.3200,
-    lng: 106.8200,
-    hpht: '2025-01-05',
-    pregnancyMonth: 1,
-    pregnancyNumber: 1,
-    parityP: 0,
-    parityA: 0,
-    medicalHistory: 'Sehat',
-    role: UserRole.USER,
-    phone: '081234567805',
-    isActive: true,
-    selectedRiskFactors: [],
-    totalRiskScore: 0
-  },
-  {
     id: 'u6',
     username: 'lia',
     password: 'u6',
@@ -193,6 +170,113 @@ export const MOCK_USERS: User[] = [
     isActive: true,
     selectedRiskFactors: ['HEART_DIS'],
     totalRiskScore: 12
+  }
+];
+
+export const MOCK_ANC_VISITS: ANCVisit[] = [
+  // RINA KARTIKA (High Risk - Hipertensi)
+  {
+    id: 'v-rina-1',
+    patientId: 'u2',
+    visitDate: '2025-01-10',
+    scheduledDate: '2025-01-10',
+    nextVisitDate: '2025-02-10',
+    weight: 65.5,
+    bloodPressure: '145/95',
+    tfu: 24,
+    djj: 144,
+    hb: 10.5,
+    complaints: 'Sakit kepala ringan',
+    dangerSigns: ['Pusing Hebat'],
+    edema: true,
+    fetalMovement: 'Normal',
+    followUp: 'KONSUL_DOKTER',
+    nakesNotes: 'Waspada Pre-eklampsia, diet rendah garam.',
+    nakesId: 'bidan',
+    status: 'COMPLETED'
+  },
+  {
+    id: 'v-rina-2',
+    patientId: 'u2',
+    visitDate: '2025-02-15',
+    scheduledDate: '2025-02-10',
+    nextVisitDate: '2025-03-15',
+    weight: 68.2,
+    bloodPressure: '155/100',
+    tfu: 28,
+    djj: 150,
+    hb: 10.2,
+    complaints: 'Kaki bengkak',
+    dangerSigns: ['Pusing Hebat'],
+    edema: true,
+    fetalMovement: 'Normal',
+    followUp: 'RUJUK_RS',
+    nakesNotes: 'Tekanan darah meningkat signifikan, segera rujuk ke RS untuk evaluasi spesialis.',
+    nakesId: 'bidan',
+    status: 'COMPLETED'
+  },
+  // DEWI SARTIKA (Moderate Risk - Riwayat SC)
+  {
+    id: 'v-dewi-1',
+    patientId: 'u3',
+    visitDate: '2025-01-20',
+    scheduledDate: '2025-01-20',
+    nextVisitDate: '2025-02-20',
+    weight: 60.0,
+    bloodPressure: '110/70',
+    tfu: 20,
+    djj: 138,
+    hb: 11.5,
+    complaints: 'Nyeri pada bekas jahitan lama',
+    dangerSigns: [],
+    edema: false,
+    fetalMovement: 'Normal',
+    followUp: 'ANC_RUTIN',
+    nakesNotes: 'Kondisi stabil, bekas SC tidak ada kelainan bermakna.',
+    nakesId: 'bidan',
+    status: 'COMPLETED'
+  },
+  // MAYA INDAH (High Risk - Diabetes)
+  {
+    id: 'v-maya-1',
+    patientId: 'u4',
+    visitDate: '2025-02-05',
+    scheduledDate: '2025-02-05',
+    nextVisitDate: '2025-03-05',
+    weight: 75.0,
+    bloodPressure: '130/85',
+    tfu: 18,
+    djj: 142,
+    hb: 11.0,
+    complaints: 'Sering haus dan BAK malam hari',
+    dangerSigns: [],
+    edema: false,
+    fetalMovement: 'Normal',
+    followUp: 'KONSUL_DOKTER',
+    nakesNotes: 'Kontrol gula darah ketat, kolaborasi dengan dokter penyakit dalam.',
+    nakesId: 'bidan',
+    status: 'COMPLETED'
+  },
+  // LIA PERMATA (Extreme Risk - Jantung)
+  {
+    id: 'v-lia-1',
+    patientId: 'u6',
+    visitDate: '2025-02-12',
+    scheduledDate: '2025-02-12',
+    nextVisitDate: '2025-03-12',
+    weight: 55.0,
+    bloodPressure: '120/80',
+    tfu: 30,
+    djj: 155,
+    hb: 10.8,
+    complaints: 'Sesak nafas saat beraktivitas ringan',
+    dangerSigns: ['Pusing Hebat'],
+    edema: true,
+    fetalMovement: 'Kurang Aktif',
+    followUp: 'RUJUK_RS',
+    nakesNotes: 'Pasien sesak nafas (dispnea), risiko dekompensasi kordis. Rujuk segera.',
+    nakesId: 'bidan',
+    status: 'COMPLETED'
   }
 ];
 

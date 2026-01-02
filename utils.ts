@@ -36,27 +36,29 @@ export const calculatePregnancyProgress = (hphtString: string) => {
     weeks,
     months,
     totalDays,
-    hpl: hpl.toISOString().split('T')[0],
+    hpl: hpl.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     percentage: Math.min(Math.round((totalDays / 280) * 100), 100)
   };
 };
 
-export const getRiskCategory = (score: number, currentAncData?: any) => {
+export const getRiskCategory = (scoreFromFactors: number, currentAncData?: any) => {
   const baseScore = 2; // Skor awal ibu hamil (KRR)
-  const total = score + baseScore;
+  const total = scoreFromFactors + baseScore;
 
-  // 1. CEK KRITERIA DARURAT (TRIASE HITAM / KRITIS)
+  // 1. TRIASE HITAM (GAWAT DARURAT KLINIS)
   if (currentAncData) {
-    const [sys, dia] = (currentAncData.bloodPressure || "0/0").split('/').map(Number);
-    const hasEmergencySigns = currentAncData.dangerSigns?.some((s: string) => 
-      ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Nyeri Kepala Hebat', 'Pandangan Kabur', 'Pusing Hebat'].includes(s)
+    const bpStr = currentAncData.bloodPressure || "0/0";
+    const [sys, dia] = bpStr.split('/').map(Number);
+    const djj = Number(currentAncData.djj || 140);
+    
+    const hasFatalSigns = currentAncData.dangerSigns?.some((s: string) => 
+      ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut Hebat'].includes(s)
     );
     
-    // Syarat Hitam: Hipertensi Berat ATAU Tanda Bahaya Fatal ATAU Gerak Janin Absen
-    if (sys >= 160 || dia >= 110 || hasEmergencySigns || currentAncData.fetalMovement === 'Tidak Ada') {
+    if (sys >= 160 || dia >= 110 || hasFatalSigns || currentAncData.fetalMovement === 'Tidak Ada' || djj < 120 || djj > 160) {
       return { 
         label: 'HITAM', 
-        desc: 'KRITIS / GAWAT DARURAT', 
+        desc: 'KRITIS / EMERGENCY - RUJUK SEGERA', 
         color: 'text-white bg-slate-950 border-slate-900', 
         hex: '#020617',
         priority: 0
@@ -64,35 +66,47 @@ export const getRiskCategory = (score: number, currentAncData?: any) => {
     }
   }
 
-  // 2. CEK SKOR POEDJI ROCHJATI
-  // Skor >= 12: Risiko Sangat Tinggi (MERAH)
+  // 2. KRST (MERAH) - Skor >= 12
   if (total >= 12) {
     return { 
       label: 'MERAH', 
       desc: 'Risiko Sangat Tinggi (KRST)', 
-      color: 'text-red-700 bg-red-100 border-red-200', 
-      hex: '#b91c1c',
+      color: 'text-white bg-red-600 border-red-700', 
+      hex: '#dc2626',
       priority: 1
     };
   }
   
-  // Skor 6 - 10: Risiko Tinggi (KUNING)
+  // 3. KRT (KUNING) - Skor 6 - 10
   if (total >= 6) {
     return { 
       label: 'KUNING', 
       desc: 'Risiko Tinggi (KRT)', 
-      color: 'text-orange-700 bg-orange-100 border-orange-200', 
-      hex: '#c2410c',
+      color: 'text-yellow-900 bg-yellow-400 border-yellow-500', 
+      hex: '#facc15',
       priority: 2
     };
   }
   
-  // Skor 2: Risiko Rendah (HIJAU)
+  // 4. KRR (HIJAU) - Skor 2
   return { 
     label: 'HIJAU', 
     desc: 'Risiko Rendah (KRR)', 
-    color: 'text-emerald-700 bg-emerald-100 border-emerald-200', 
-    hex: '#047857',
+    color: 'text-white bg-emerald-500 border-emerald-600', 
+    hex: '#10b981',
     priority: 3
   };
+};
+
+export const getBabySizeByWeek = (week: number) => {
+  if (week <= 4) return { name: 'Biji Poppy', icon: '🌱' };
+  if (week <= 8) return { name: 'Buah Raspberry', icon: '🫐' };
+  if (week <= 12) return { name: 'Buah Lemon', icon: '🍋' };
+  if (week <= 16) return { name: 'Buah Alpukat', icon: '🥑' };
+  if (week <= 20) return { name: 'Buah Pisang', icon: '🍌' };
+  if (week <= 24) return { name: 'Buah Jagung', icon: '🌽' };
+  if (week <= 28) return { name: 'Buah Terong', icon: '🍆' };
+  if (week <= 32) return { name: 'Buah Kelapa', icon: '🥥' };
+  if (week <= 36) return { name: 'Buah Melon', icon: '🍈' };
+  return { name: 'Semangka Kecil', icon: '🍉' };
 };
