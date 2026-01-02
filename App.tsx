@@ -3,7 +3,6 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { UserRole, User, AppState, ANCVisit, SystemLog, SystemAlert } from './types';
 import { MOCK_USERS, PUSKESMAS_INFO, WILAYAH_DATA, NAVIGATION, MOCK_ANC_VISITS } from './constants';
 import { RISK_FACTORS_MASTER, calculatePregnancyProgress, getRiskCategory, getBabySizeByWeek } from './utils';
-import { GoogleGenAI } from "@google/genai";
 import { 
   CheckCircle, AlertCircle, Users, Calendar, AlertTriangle,
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, Activity, 
@@ -30,6 +29,13 @@ const DAILY_TASKS = [
   { task: 'Konsumsi Protein Tinggi', time: 'Sarapan/Maksi', icon: <Utensils size={16} /> }
 ];
 
+// Pengganti AI: Panduan Medis Otomatis
+const getTrimesterAdvice = (weeks: number) => {
+  if (weeks <= 13) return "Trimester 1: Fokus pada asupan Asam Folat untuk perkembangan saraf janin. Istirahat cukup jika sering mual (morning sickness).";
+  if (weeks <= 26) return "Trimester 2: Mulai hitung gerakan janin. Konsumsi kalsium tinggi untuk pembentukan tulang bayi dan cegah anemia dengan zat besi.";
+  return "Trimester 3: Waspadai tanda persalinan dan Pre-eklampsia (pusing hebat/kaki bengkak). Siapkan tas persalinan dan perlengkapan bayi.";
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [view, setView] = useState('dashboard');
@@ -40,8 +46,6 @@ export default function App() {
   const [viewingPatientProfile, setViewingPatientProfile] = useState<string | null>(null);
   const [tempRiskFactors, setTempRiskFactors] = useState<string[]>([]);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>('Memuat saran kesehatan pintar...');
-  const [isAdviceLoading, setIsAdviceLoading] = useState(false);
   
   const [formCoords, setFormCoords] = useState<{lat: string, lng: string}>({lat: '', lng: ''});
   const [isGettingLocation, setIsGettingLocation] = useState(false);
@@ -59,7 +63,6 @@ export default function App() {
       try { 
         const parsed = JSON.parse(savedData);
         if (!parsed.userChecklists) parsed.userChecklists = {};
-        // Memastikan visits tersimpan atau default ke mock
         if (!parsed.ancVisits || parsed.ancVisits.length === 0) parsed.ancVisits = MOCK_ANC_VISITS;
         return parsed; 
       } catch (e) { console.error(e); }
@@ -81,30 +84,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
-
-  // AI Advice Effect for Patients
-  useEffect(() => {
-    if (currentUser?.role === UserRole.USER && view === 'dashboard') {
-      const fetchAiAdvice = async () => {
-        setIsAdviceLoading(true);
-        try {
-          const progress = calculatePregnancyProgress(currentUser.hpht);
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Kamu adalah dokter spesialis obgyn yang ahli dan ramah. Ibu hamil ini sedang di minggu ke-${progress?.weeks || 0} dengan skor risiko ${currentUser.totalRiskScore + 2}. Berikan 1 tips kesehatan spesifik dan menyemangati (maks 30 kata). Gunakan Bahasa Indonesia.`,
-          });
-          setAiAdvice(response.text || 'Tetap jaga kesehatan dan nutrisi ya Bu!');
-        } catch (err) {
-          console.error('AI Error:', err);
-          setAiAdvice('Pastikan ibu istirahat cukup, konsumsi vitamin, dan segera hubungi bidan jika ada keluhan.');
-        } finally {
-          setIsAdviceLoading(false);
-        }
-      };
-      fetchAiAdvice();
-    }
-  }, [currentUser, view]);
 
   const addLog = useCallback((action: string, module: string, details: string) => {
     if (!currentUser) return;
@@ -503,6 +482,7 @@ export default function App() {
       const babyInfo = getBabySizeByWeek(weeks);
       const percentage = progress?.percentage || 0;
       const userChecklist = state.userChecklists[currentUser.id] || {};
+      const trimesterAdvice = getTrimesterAdvice(weeks);
 
       return (
         <div className="space-y-10 animate-in fade-in duration-700">
@@ -537,14 +517,14 @@ export default function App() {
                       </div>
                    </div>
 
-                   {/* AI Tips Section */}
+                   {/* Pengganti AI: Trimester Guidance */}
                    <div className="bg-white/10 p-6 rounded-[2.5rem] border border-white/20 backdrop-blur-3xl flex items-start gap-4 text-left shadow-xl group-hover:-translate-y-1 transition-transform">
                       <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-lg shrink-0">
-                         {isAdviceLoading ? <BrainCircuit size={24} className="animate-spin-slow" /> : <Sparkles size={24} className="animate-pulse" />}
+                         <ShieldCheck size={24} className="animate-pulse" />
                       </div>
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Tips Pintar Dokter OBGYN</p>
-                        <p className="text-sm font-bold leading-relaxed">{aiAdvice}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Panduan Cerdas Trimester</p>
+                        <p className="text-sm font-bold leading-relaxed">{trimesterAdvice}</p>
                       </div>
                    </div>
                 </div>
