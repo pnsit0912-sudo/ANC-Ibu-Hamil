@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Users, Edit3, Calendar, AlertTriangle, Trash2, Baby, Phone, CheckCircle2, AlertCircle, Clock, Activity, ShieldAlert, ChevronRight, MapPin, Download, Eye } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Users, Edit3, Activity, Download, Eye, ChevronDown } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
 import { getRiskCategory } from './utils';
 
@@ -18,26 +18,45 @@ interface PatientListProps {
 }
 
 export const PatientList: React.FC<PatientListProps> = ({ 
-  users, visits, onEdit, onAddVisit, onViewProfile, onDeletePatient, searchFilter, currentUserRole 
+  users, visits, onEdit, onAddVisit, onViewProfile, searchFilter, currentUserRole 
 }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(10);
   const today = new Date().toISOString().split('T')[0];
 
-  const filteredUsers = users.filter(u => 
-    u.role === 'USER' && (u.name.toLowerCase().includes(searchFilter.toLowerCase()))
-  );
+  // OPTIMASI: Indexing kunjungan berdasarkan Patient ID
+  // Ini menghindari penggunaan .filter() di dalam loop render (O(U+V) vs O(U*V))
+  const visitsByPatient = useMemo(() => {
+    const grouped: Record<string, ANCVisit[]> = {};
+    visits.forEach(v => {
+      if (!grouped[v.patientId]) grouped[v.patientId] = [];
+      grouped[v.patientId].push(v);
+    });
+    // Sort setiap grup berdasarkan tanggal terbaru
+    Object.keys(grouped).forEach(pid => {
+      grouped[pid].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+    });
+    return grouped;
+  }, [visits]);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => 
+      u.role === UserRole.USER && (u.name.toLowerCase().includes(searchFilter.toLowerCase()))
+    );
+  }, [users, searchFilter]);
+
+  const visibleUsers = useMemo(() => {
+    return filteredUsers.slice(0, displayLimit);
+  }, [filteredUsers, displayLimit]);
 
   const handleExportCSV = () => {
-    // Definisi Header CSV
     const headers = [
       'Nama Lengkap', 'Telepon', 'Kelurahan', 'Skor Risiko', 'Triase', 
       'Gravida (G)', 'Para (P)', 'Abortus (A)', 'Usia Hamil (Bulan)', 
       'Tgl Kontrol Terakhir', 'TD Terakhir', 'BB Terakhir', 'Hb Terakhir', 'Catatan Nakes'
     ];
 
-    // Map data pasien ke baris CSV
     const rows = filteredUsers.map(u => {
-      const patientVisits = visits.filter(v => v.patientId === u.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
+      const patientVisits = visitsByPatient[u.id] || [];
       const latest = patientVisits[0];
       const risk = getRiskCategory(u.totalRiskScore, latest);
       
@@ -104,8 +123,8 @@ export const PatientList: React.FC<PatientListProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {filteredUsers.map(u => {
-              const patientVisits = visits.filter(v => v.patientId === u.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
+            {visibleUsers.map(u => {
+              const patientVisits = visitsByPatient[u.id] || [];
               const latest = patientVisits[0];
               const risk = getRiskCategory(u.totalRiskScore, latest);
               const isEmergency = risk.label === 'HITAM';
@@ -150,6 +169,17 @@ export const PatientList: React.FC<PatientListProps> = ({
           </tbody>
         </table>
       </div>
+
+      {filteredUsers.length > displayLimit && (
+        <div className="p-12 flex justify-center bg-gray-50/30">
+          <button 
+            onClick={() => setDisplayLimit(prev => prev + 10)}
+            className="flex items-center gap-3 px-10 py-4 bg-white border border-gray-200 text-gray-500 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:border-indigo-600 hover:text-indigo-600 transition-all"
+          >
+            Muat Lebih Banyak <ChevronDown size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

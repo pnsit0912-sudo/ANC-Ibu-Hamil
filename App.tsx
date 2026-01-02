@@ -34,11 +34,9 @@ export default function App() {
   const [tempRiskFactors, setTempRiskFactors] = useState<string[]>([]);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
-  // Geolocation states
   const [formCoords, setFormCoords] = useState<{lat: string, lng: string}>({lat: '', lng: ''});
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  // Live Visit Preview State for ANC Visit Modal
   const [visitPreviewData, setVisitPreviewData] = useState<Partial<ANCVisit>>({
     bloodPressure: '120/80',
     dangerSigns: [],
@@ -50,10 +48,55 @@ export default function App() {
     if (savedData) {
       try { return JSON.parse(savedData); } catch (e) { console.error(e); }
     }
+    
+    // Initial Mock Visits to trigger Triage levels
+    const initialVisits: ANCVisit[] = [
+      {
+        id: 'v-mock-1',
+        patientId: 'u2', // Rina (Hitam)
+        visitDate: '2025-02-15',
+        scheduledDate: '2025-02-15',
+        nextVisitDate: '2025-02-16',
+        weight: 65,
+        bloodPressure: '165/110',
+        tfu: 28,
+        djj: 140,
+        hb: 10,
+        complaints: 'Pusing hebat dan pandangan kabur',
+        dangerSigns: ['Perdarahan', 'Pusing Hebat'],
+        edema: true,
+        fetalMovement: 'Normal',
+        followUp: 'RUJUK_RS',
+        nakesNotes: 'PASIEN KRITIS - SEGERA RUJUK KE RSUD',
+        nakesId: 'bidan',
+        status: 'COMPLETED'
+      },
+      {
+        id: 'v-mock-2',
+        patientId: 'u3', // Dewi (Kuning)
+        visitDate: '2025-02-10',
+        scheduledDate: '2025-02-10',
+        nextVisitDate: '2025-03-10',
+        weight: 60,
+        bloodPressure: '120/80',
+        tfu: 22,
+        djj: 145,
+        hb: 11.5,
+        complaints: '-',
+        dangerSigns: [],
+        edema: false,
+        fetalMovement: 'Normal',
+        followUp: 'RUTIN',
+        nakesNotes: 'ANC Rutin, Pantau bekas luka SC',
+        nakesId: 'bidan',
+        status: 'COMPLETED'
+      }
+    ];
+
     return {
       currentUser: null,
       users: MOCK_USERS,
-      ancVisits: [],
+      ancVisits: initialVisits,
       alerts: [],
       selectedPatientId: null,
       logs: []
@@ -386,7 +429,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Render main content views */}
           {view === 'dashboard' && <DashboardHome />}
           
           {(view === 'patients' && currentUser.role !== UserRole.USER) && (
@@ -412,7 +454,6 @@ export default function App() {
 
           {(view === 'register' && currentUser.role !== UserRole.USER) && (
             <div className="max-w-5xl mx-auto space-y-10 animate-in zoom-in-95">
-              {/* Form Content */}
               <div className="bg-white p-8 md:p-16 rounded-[3rem] md:rounded-[4rem] shadow-sm border border-gray-100">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
                   <div className="flex items-center gap-6">
@@ -655,7 +696,6 @@ export default function App() {
           {view === 'education' && <EducationModule />}
           {view === 'contact' && <ContactModule />}
 
-          {/* Render PatientProfileView as a Modal (Pop-up) */}
           {viewingPatientProfile && (
             <div className="fixed inset-0 z-[110] bg-indigo-950/80 backdrop-blur-md flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
               <div className="bg-gray-50 w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-[3rem] md:rounded-[4rem] shadow-2xl relative">

@@ -1,10 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { 
-  AlertTriangle, Activity, ClipboardList, TrendingUp, 
-  Search, Filter, Stethoscope, Heart, AlertCircle, ShieldAlert,
-  ArrowRight, CheckCircle2, Info, MapPin, BarChart3, PieChart,
-  CalendarDays, ChevronDown, Download, FileSpreadsheet, X
+  Activity, CalendarDays, ChevronDown, FileSpreadsheet, Heart, MapPin, BarChart3, ShieldAlert
 } from 'lucide-react';
 import { User, ANCVisit, AppState, UserRole } from './types';
 import { WILAYAH_DATA } from './constants';
@@ -19,16 +16,14 @@ interface RiskMonitoringProps {
 
 type StatData = { total: number, hitam: number, merah: number, kuning: number, hijau: number };
 
-export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit, onToggleVisitStatus }) => {
+export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit }) => {
   const { users, ancVisits } = state;
   const [filterKelurahan, setFilterKelurahan] = useState<string>('ALL');
   
-  // State Filter Waktu
   const currentYear = new Date().getFullYear().toString();
   const [filterYear, setFilterYear] = useState<string>(currentYear);
-  const [filterQuarter, setFilterQuarter] = useState<string>('ALL'); // ALL, 1, 2, 3, 4
+  const [filterQuarter, setFilterQuarter] = useState<string>('ALL');
 
-  // Mendapatkan daftar tahun yang tersedia dari data kunjungan
   const availableYears = useMemo(() => {
     const years = new Set<string>();
     years.add(currentYear);
@@ -36,33 +31,36 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [ancVisits, currentYear]);
 
-  // Filter Kunjungan Berdasarkan Waktu
-  const filteredVisitsByPeriod = useMemo(() => {
-    return ancVisits.filter(v => {
+  // OPTIMASI: Filter dan Kelompokkan kunjungan berdasarkan periode sekali saja
+  const visitsByPatientInPeriod = useMemo(() => {
+    const grouped: Record<string, ANCVisit[]> = {};
+    ancVisits.forEach(v => {
       const date = new Date(v.visitDate);
       const year = date.getFullYear().toString();
-      const month = date.getMonth(); // 0-11
-      const quarter = Math.floor(month / 3) + 1; // 1-4
+      const month = date.getMonth(); 
+      const quarter = Math.floor(month / 3) + 1;
 
       const matchYear = filterYear === 'ALL' || year === filterYear;
       const matchQuarter = filterQuarter === 'ALL' || quarter.toString() === filterQuarter;
 
-      return matchYear && matchQuarter;
+      if (matchYear && matchQuarter) {
+        if (!grouped[v.patientId]) grouped[v.patientId] = [];
+        grouped[v.patientId].push(v);
+      }
     });
+    return grouped;
   }, [ancVisits, filterYear, filterQuarter]);
 
-  // Integrasi Skoring & Analisis Berdasarkan Periode Terpilih
+  // OPTIMASI: Kalkulasi analisis risiko menggunakan index periode
   const riskAnalysis = useMemo(() => {
-    // Kita hanya mengambil pasien yang memiliki kunjungan di periode tersebut
-    // ATAU jika 'ALL' dipilih, ambil semua pasien aktif
-    const patientIdsInPeriod = new Set(filteredVisitsByPeriod.map(v => v.patientId));
+    const patientIdsInPeriod = new Set(Object.keys(visitsByPatientInPeriod));
+    const allTimePatients = users.filter(u => u.role === UserRole.USER);
     
-    return users
-      .filter(u => u.role === UserRole.USER)
+    return allTimePatients
       .filter(u => (filterYear === 'ALL' && filterQuarter === 'ALL') ? true : patientIdsInPeriod.has(u.id))
       .map(patient => {
-        const periodVisits = filteredVisitsByPeriod.filter(v => v.patientId === patient.id);
-        const latestVisitInPeriod = periodVisits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
+        const periodVisits = (visitsByPatientInPeriod[patient.id] || []).sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+        const latestVisitInPeriod = periodVisits[0];
         
         const risk = getRiskCategory(patient.totalRiskScore, latestVisitInPeriod);
         
@@ -76,7 +74,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
 
         return { ...patient, riskLevel: risk.label, riskFlags, latestVisit: latestVisitInPeriod, priority: risk.priority };
       });
-  }, [users, filteredVisitsByPeriod, filterYear, filterQuarter]);
+  }, [users, visitsByPatientInPeriod, filterYear, filterQuarter]);
 
   const statsAggregation = useMemo(() => {
     const kecStats: Record<string, StatData> = {};
@@ -92,26 +90,27 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
     riskAnalysis.forEach(p => {
       const kec = p.kecamatan || "Pasar Minggu";
       const kel = p.kelurahan;
-      const levelKey = p.riskLevel.toLowerCase() as 'hitam'|'merah'|'kuning'|'hijau';
+      const levelKey = p.riskLevel.toLowerCase() as keyof StatData;
 
       if (kecStats[kec]) {
         kecStats[kec].total++;
-        kecStats[kec][levelKey]++;
+        if (typeof kecStats[kec][levelKey] === 'number') (kecStats[kec][levelKey] as number)++;
       }
       if (kelStats[kel]) {
         kelStats[kel].total++;
-        kelStats[kel][levelKey]++;
+        if (typeof kelStats[kel][levelKey] === 'number') (kelStats[kel][levelKey] as number)++;
       }
     });
 
     return { kecStats, kelStats };
   }, [riskAnalysis]);
 
-  const filteredRiskList = riskAnalysis.filter(p => 
-    filterKelurahan === 'ALL' || p.kelurahan === filterKelurahan
-  ).sort((a, b) => (a.priority || 0) - (b.priority || 0));
+  const filteredRiskList = useMemo(() => {
+    return riskAnalysis.filter(p => 
+      filterKelurahan === 'ALL' || p.kelurahan === filterKelurahan
+    ).sort((a, b) => (a.priority || 0) - (b.priority || 0));
+  }, [riskAnalysis, filterKelurahan]);
 
-  // Fungsi Tarik Data (Ekspor CSV)
   const handleExportReport = () => {
     const headers = [
       'Nama Pasien', 'NIK/ID', 'Kelurahan', 'Status Risiko', 'Skor Dasar', 
@@ -126,11 +125,9 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
       p.totalRiskScore + 2,
       `"${p.latestVisit?.bloodPressure || '-'}"`,
       p.latestVisit?.visitDate || '-',
-      // Fix: cast riskFlags to string[] to ensure join is available
       `"${((p.riskFlags as string[]).join('; '))}"`
     ].join(','));
 
-    // Fix: Pastikan semua elemen di summary adalah array sebelum diproses .join(',')
     const summary: any[][] = [
       ['LAPORAN MONITORING RISIKO ANC'],
       [`Periode: ${filterYear === 'ALL' ? 'Semua Tahun' : filterYear} - ${filterQuarter === 'ALL' ? 'Tahunan' : 'Triwulan ' + filterQuarter}`],
@@ -145,7 +142,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
       ['Total Pasien Dalam Periode', riskAnalysis.length],
       [],
       ['DATA DETAIL PASIEN PRIORITAS'],
-      headers // Fix: Headers harus berupa array, bukan string hasil join
+      headers
     ];
 
     const csvContent = summary.map(r => r.join(',')).join('\n') + '\n' + rows.join('\n');
@@ -163,7 +160,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      {/* Kontrol Filter Global (Waktu & Lokasi) */}
       <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-xl border border-white flex flex-col xl:flex-row items-center justify-between gap-8">
         <div className="flex items-center gap-6">
           <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-lg shadow-indigo-100">
@@ -171,12 +167,11 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
           </div>
           <div>
             <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Periode Monitoring</h2>
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Sesuaikan Waktu Tarik Data</p>
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Optimalisasi Analisis Performa</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-          {/* Filter Tahun */}
           <div className="flex-1 md:flex-none">
             <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Tahun</label>
             <div className="relative">
@@ -192,7 +187,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
             </div>
           </div>
 
-          {/* Filter Triwulan */}
           <div className="flex-1 md:flex-none">
             <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Triwulan</label>
             <div className="relative">
@@ -201,7 +195,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                 onChange={(e) => setFilterQuarter(e.target.value)}
                 className="w-full md:w-56 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
               >
-                <option value="ALL">Semua Triwulan (Tahunan)</option>
+                <option value="ALL">Semua Triwulan</option>
                 <option value="1">Triwulan I (Jan - Mar)</option>
                 <option value="2">Triwulan II (Apr - Jun)</option>
                 <option value="3">Triwulan III (Jul - Sep)</option>
@@ -211,7 +205,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
             </div>
           </div>
 
-          {/* Filter Kelurahan */}
           <div className="flex-1 md:flex-none">
             <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Wilayah</label>
             <div className="relative">
@@ -227,11 +220,10 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
             </div>
           </div>
 
-          {/* Tombol Tarik Data */}
           <div className="flex-1 md:flex-none pt-4 xl:pt-0">
              <button 
                onClick={handleExportReport}
-               className="w-full xl:w-auto px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
+               className="w-full xl:w-auto px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:scale-105 transition-all flex items-center justify-center gap-3"
              >
                <FileSpreadsheet size={16} /> Tarik Data CSV
              </button>
@@ -239,7 +231,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         </div>
       </div>
 
-      {/* Tampilan Status Periode Aktif */}
       <div className="flex items-center gap-4 animate-in slide-in-from-left-4">
         <div className="h-px flex-1 bg-gray-100" />
         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">
@@ -249,7 +240,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         <div className="h-px flex-1 bg-gray-100" />
       </div>
 
-      {/* Dashboard Ringkasan Eksekutif */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Kritis (Hitam)', count: riskAnalysis.filter(p => p.riskLevel === 'HITAM').length, color: 'bg-slate-950', text: 'text-white' },
@@ -267,7 +257,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         ))}
       </div>
 
-      {/* Visualisasi Analitik */}
       <div className="space-y-8">
         <div className="flex items-center gap-3">
           <BarChart3 className="text-indigo-600" size={28} />
@@ -284,8 +273,9 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
               </div>
 
               <div className="space-y-8">
-                {Object.entries(statsAggregation.kecStats).map(([kec, untypedStat]) => {
-                  const stat = untypedStat as StatData;
+                {/* Fix: Cast Object.entries value to StatData to avoid 'unknown' type error */}
+                {Object.entries(statsAggregation.kecStats).map(([kec, val]) => {
+                  const stat = val as StatData;
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
                   
@@ -325,8 +315,9 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(statsAggregation.kelStats).map(([kel, untypedStat]) => {
-                  const stat = untypedStat as StatData;
+                {/* Fix: Cast Object.entries value to StatData to avoid 'unknown' type error */}
+                {Object.entries(statsAggregation.kelStats).map(([kel, val]) => {
+                  const stat = val as StatData;
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
                   
@@ -370,7 +361,6 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         </div>
       </div>
 
-      {/* Monitoring Pasien Prioritas (Detail) */}
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3">
