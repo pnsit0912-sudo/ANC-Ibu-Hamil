@@ -38,22 +38,22 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
               <h1 className="text-4xl font-black text-indigo-900 tracking-tighter uppercase leading-none">KARTU ANC PINTAR</h1>
               <p className="text-[10px] font-black text-indigo-400 tracking-[0.4em] uppercase mt-2">Sistem Integrasi Puskesmas</p>
               <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">
-                <ShieldCheck size={12} /> Login Otomatis via QR Aktif
+                <ShieldCheck size={12} /> Login Otomatis Aktif
               </div>
             </div>
             <div className="w-full space-y-5 border-t-2 border-dashed border-gray-100 pt-10">
               <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Nama Pasien</span><span className="font-black text-gray-900 uppercase text-lg">{patientToDisplay.name}</span></div>
               <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Identitas</span><span className="font-black text-gray-900 uppercase">G{patientToDisplay.pregnancyNumber} | {patientToDisplay.pregnancyMonth} Bulan</span></div>
-              <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Puskesmas</span><span className="font-black text-gray-900 text-xs">{PUSKESMAS_INFO.name}</span></div>
+              <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">ID Unik</span><span className="font-black text-indigo-600 text-xs">{patientToDisplay.id}</span></div>
             </div>
           </div>
-          <div className="mt-10 bg-gray-900 p-8 rounded-[2.5rem] text-white flex flex-col items-center text-center gap-4">
+          <div className="mt-10 bg-gray-900 p-8 rounded-[2.5rem] text-white flex flex-col items-center text-center gap-4 no-print">
             <div className="bg-white/10 p-3 rounded-2xl">
-              <Camera size={24} className="text-indigo-400" />
+               <Camera size={24} className="text-indigo-400" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Petunjuk Login Cepat</p>
-              <p className="text-[11px] font-bold mt-2">Cetak kartu ini dan gunakan fitur 'Scan Kartu' pada halaman login untuk masuk ke aplikasi tanpa mengetik username & password.</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Fitur Login Cepat</p>
+              <p className="text-[11px] font-bold mt-1">Cetak kartu ini dan gunakan fitur 'Scan Kartu' di halaman login untuk masuk secara otomatis.</p>
             </div>
           </div>
         </div>
@@ -317,3 +317,14 @@ export const ContactModule = () => {
     </div>
   );
 };
+
+// Modul Akses Ditolak
+export const AccessDenied = () => (
+  <div className="p-20 text-center animate-in zoom-in duration-500">
+    <div className="bg-red-50 p-16 rounded-[4rem] border-4 border-dashed border-red-200">
+      <UserX size={80} className="mx-auto text-red-400 mb-6" />
+      <h2 className="text-3xl font-black text-red-600 uppercase tracking-tighter">Akses Sistem Dicabut</h2>
+      <p className="text-red-500 font-bold mt-2">Silakan hubungi administrator puskesmas untuk verifikasi ulang identitas Anda.</p>
+    </div>
+  </div>
+);

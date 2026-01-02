@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { 
   AlertTriangle, Activity, ClipboardList, TrendingUp, 
@@ -15,6 +14,9 @@ interface RiskMonitoringProps {
   onAddVisit: (u: User) => void;
   onToggleVisitStatus: (visitId: string) => void;
 }
+
+// Added type for statistical data to fix 'unknown' errors during object iteration
+type StatData = { total: number, hitam: number, merah: number, kuning: number, hijau: number };
 
 export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit, onToggleVisitStatus }) => {
   const { users, ancVisits } = state;
@@ -52,8 +54,9 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
 
   // Agregasi Statistik Wilayah
   const statsAggregation = useMemo(() => {
-    const kecStats: Record<string, { total: number, hitam: number, merah: number, kuning: number, hijau: number }> = {};
-    const kelStats: Record<string, { total: number, hitam: number, merah: number, kuning: number, hijau: number }> = {};
+    // Fix: Explicitly typed Record with StatData to assist compiler inference
+    const kecStats: Record<string, StatData> = {};
+    const kelStats: Record<string, StatData> = {};
 
     Object.keys(WILAYAH_DATA).forEach(kec => {
       kecStats[kec] = { total: 0, hitam: 0, merah: 0, kuning: 0, hijau: 0 };
@@ -121,7 +124,9 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
               </div>
 
               <div className="space-y-8">
-                {Object.entries(statsAggregation.kecStats).map(([kec, stat]) => {
+                {Object.entries(statsAggregation.kecStats).map(([kec, untypedStat]) => {
+                  // Fix: Casting untypedStat to StatData to resolve 'unknown' property access errors
+                  const stat = untypedStat as StatData;
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
                   
@@ -161,7 +166,9 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(statsAggregation.kelStats).map(([kel, stat]) => {
+                {Object.entries(statsAggregation.kelStats).map(([kel, untypedStat]) => {
+                  // Fix: Casting untypedStat to StatData to resolve 'unknown' property access errors
+                  const stat = untypedStat as StatData;
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
                   
@@ -192,7 +199,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                                 style={{ width: stat.total > 0 ? `${(bar.val / stat.total) * 100}%` : '0%' }}
                               />
                             </div>
-                            <div className="w-4 text-[9px] font-black text-gray-900 text-right">{bar.val}</div>
+                            <div className="w-4 text-[9px] font-black text-gray-900 text-right">{stat.val}</div>
                           </div>
                         ))}
                       </div>
@@ -289,3 +296,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
     </div>
   );
 };
+
+const CheckCircle2 = ({ size }: { size: number }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+);

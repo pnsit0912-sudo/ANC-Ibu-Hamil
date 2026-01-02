@@ -20,26 +20,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
     let scanner: Html5QrcodeScanner | null = null;
 
     if (isScanning) {
+      // Inisialisasi pemindai hanya ketika mode scanning aktif
       scanner = new Html5QrcodeScanner(
         "qr-reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        },
         /* verbose= */ false
       );
 
       scanner.render(onScanSuccess, onScanFailure);
     }
 
+    // Cleanup saat komponen unmount atau scanning dimatikan
     return () => {
       if (scanner) {
-        scanner.clear().catch(err => console.error("Failed to clear scanner", err));
+        scanner.clear().catch(err => console.error("Gagal mematikan scanner", err));
       }
     };
   }, [isScanning]);
 
   function onScanSuccess(decodedText: string) {
-    // Format QR: ANC-[ID]
-    const patientId = decodedText.replace('ANC-', '');
-    const user = users.find(u => u.id === patientId || u.username === patientId);
+    // Format QR yang diharapkan: ANC-[ID]
+    const extractedId = decodedText.startsWith('ANC-') ? decodedText.replace('ANC-', '') : decodedText;
+    const user = users.find(u => u.id === extractedId || u.username === extractedId);
 
     if (user) {
       if (!user.isActive) {
@@ -50,13 +56,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
       setIsScanning(false);
       onLogin(user);
     } else {
-      setError('Kartu ANC tidak dikenali. Pastikan Anda memindai kartu yang valid.');
+      setError('Kartu ANC tidak dikenali. Silakan gunakan ID Pengguna manual.');
       setIsScanning(false);
     }
   }
 
   function onScanFailure(error: any) {
-    // Diabaikan karena scanning terjadi terus-menerus sampai berhasil
+    // Diabaikan karena ini akan terpanggil terus-menerus selama pencarian QR
   }
 
   const handleLogin = (e: React.FormEvent) => {
@@ -151,7 +157,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
 
               <div className="relative flex items-center py-5">
                 <div className="flex-grow border-t border-gray-100"></div>
-                <span className="flex-shrink mx-4 text-[9px] font-black text-gray-300 uppercase tracking-widest">Atau Gunakan</span>
+                <span className="flex-shrink mx-4 text-[9px] font-black text-gray-300 uppercase tracking-widest">Atau</span>
                 <div className="flex-grow border-t border-gray-100"></div>
               </div>
 
@@ -159,34 +165,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
                 onClick={() => setIsScanning(true)}
                 className="w-full py-5 border-4 border-indigo-50 text-indigo-600 rounded-[2.5rem] font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-4 hover:bg-indigo-50 transition-all shadow-sm"
               >
-                <QrCode size={20} /> Scan Kartu ANC Fisik
+                <QrCode size={20} /> Scan Kartu ANC Pintar
               </button>
             </div>
           ) : (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="relative">
                 <div id="qr-reader" className="mx-auto bg-gray-100 rounded-[3rem] overflow-hidden min-h-[300px] border-4 border-indigo-100 shadow-inner"></div>
-                <div className="absolute top-4 right-4 z-20">
-                  <button 
-                    onClick={() => setIsScanning(false)}
-                    className="p-3 bg-white/80 backdrop-blur-md text-gray-900 rounded-2xl shadow-xl hover:bg-white transition-all"
-                  >
-                    <X size={20}/>
-                  </button>
-                </div>
-                {/* Overlay Scanning Effect */}
+                <button 
+                  onClick={() => setIsScanning(false)}
+                  className="absolute top-4 right-4 z-20 p-3 bg-white/80 backdrop-blur-md text-gray-900 rounded-2xl shadow-xl hover:bg-white transition-all"
+                >
+                  <X size={20}/>
+                </button>
+                {/* Scanner Overlay Line */}
                 <div className="absolute inset-0 pointer-events-none border-[12px] border-transparent rounded-[3rem] overflow-hidden">
                    <div className="w-full h-1 bg-indigo-500/50 absolute top-0 left-0 animate-[scan_2s_ease-in-out_infinite]"></div>
                 </div>
               </div>
               <div>
-                <h4 className="text-xl font-black text-gray-900 tracking-tighter uppercase leading-none">Siap Memindai</h4>
-                <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase">Arahkan Kamera ke QR Code pada Kartu ANC Ibu</p>
+                <h4 className="text-xl font-black text-gray-900 tracking-tighter uppercase leading-none">Menunggu Pemindaian</h4>
+                <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase">Arahkan Kamera ke QR Code pada Kartu Ibu</p>
               </div>
               <style>{`
                 @keyframes scan {
-                  0%, 100% { top: 0; }
-                  50% { top: 100%; }
+                  0%, 100% { top: 10%; }
+                  50% { top: 90%; }
                 }
               `}</style>
             </div>
@@ -202,7 +206,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
         </div>
       </div>
       
-      <div className="fixed bottom-10 text-center">
+      <div className="fixed bottom-10 text-center no-print">
         <p className="text-indigo-200 font-black text-[10px] uppercase tracking-[0.3em]">
           &copy; 2024 Puskesmas Pasar Minggu - Dinas Kesehatan Jakarta
         </p>
