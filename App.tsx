@@ -8,7 +8,7 @@ import {
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, Activity, 
   MapPin, ShieldAlert, QrCode, BookOpen, Map as MapIcon, Phone, Navigation as NavIcon, Crosshair,
   RefreshCw, Stethoscope, Heart, Droplets, Thermometer, ClipboardCheck, ArrowRight, ExternalLink,
-  Info
+  Info, Bell
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -34,8 +34,16 @@ export default function App() {
   const [tempRiskFactors, setTempRiskFactors] = useState<string[]>([]);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   
+  // Geolocation states
   const [formCoords, setFormCoords] = useState<{lat: string, lng: string}>({lat: '', lng: ''});
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+
+  // Live Visit Preview State for ANC Visit Modal
+  const [visitPreviewData, setVisitPreviewData] = useState<Partial<ANCVisit>>({
+    bloodPressure: '120/80',
+    dangerSigns: [],
+    fetalMovement: 'Normal'
+  });
 
   const [state, setState] = useState<AppState>(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
@@ -56,16 +64,22 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  useEffect(() => {
-    if (editingPatient) {
-      setFormCoords({
-        lat: editingPatient.lat?.toString() || '',
-        lng: editingPatient.lng?.toString() || ''
-      });
-    } else {
-      setFormCoords({lat: '', lng: ''});
-    }
-  }, [editingPatient]);
+  const addLog = useCallback((action: string, module: string, details: string) => {
+    if (!currentUser) return;
+    const newLog: SystemLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      userId: currentUser.id,
+      userName: currentUser.name,
+      action,
+      module,
+      details
+    };
+    setState(prev => ({
+      ...prev,
+      logs: [newLog, ...prev.logs].slice(0, 100)
+    }));
+  }, [currentUser]);
 
   const handleNavigate = (targetView: string) => {
     const navItem = NAVIGATION.find(n => n.path === targetView);
@@ -116,7 +130,7 @@ export default function App() {
     const formData = new FormData(e.currentTarget);
     const hpht = formData.get('hpht') as string;
     const progress = calculatePregnancyProgress(hpht);
-    const score = tempRiskFactors.reduce((acc, id) => acc + RISK_FACTORS_MASTER[id].score, 0);
+    const score = tempRiskFactors.reduce((acc, id) => acc + (RISK_FACTORS_MASTER[id]?.score || 0), 0);
 
     const data = {
       name: formData.get('name') as string,
@@ -124,27 +138,29 @@ export default function App() {
       phone: formData.get('phone') as string,
       hpht: hpht,
       pregnancyMonth: progress?.months || 0,
-      pregnancyNumber: parseInt(formData.get('gravida') as string),
-      parityP: parseInt(formData.get('para') as string),
-      parityA: parseInt(formData.get('abortus') as string),
+      pregnancyNumber: parseInt(formData.get('gravida') as string || '0'),
+      parityP: parseInt(formData.get('para') as string || '0'),
+      parityA: parseInt(formData.get('abortus') as string || '0'),
       medicalHistory: formData.get('history') as string,
       address: formData.get('address') as string,
       kecamatan: formData.get('kecamatan') as string,
       kelurahan: formData.get('kelurahan') as string,
-      lat: parseFloat(formData.get('lat') as string) || undefined,
-      lng: parseFloat(formData.get('lng') as string) || undefined,
+      lat: parseFloat(formData.get('lat') as string) || parseFloat(formCoords.lat) || undefined,
+      lng: parseFloat(formData.get('lng') as string) || parseFloat(formCoords.lng) || undefined,
       selectedRiskFactors: tempRiskFactors,
       totalRiskScore: score,
     };
 
     setState(prev => {
       if (editingPatient) {
+        addLog('UPDATE_PATIENT', 'PATIENT', `Mengubah data pasien ${data.name}`);
         return {
           ...prev,
           users: prev.users.map(u => u.id === editingPatient.id ? { ...u, ...data } : u)
         };
       } else {
         const generatedId = `u${Date.now().toString().slice(-4)}`;
+        addLog('REGISTER_PATIENT', 'PATIENT', `Mendaftarkan pasien baru ${data.name}`);
         return { 
           ...prev, 
           users: [...prev.users, { ...data, id: generatedId, username: generatedId, password: generatedId, role: UserRole.USER, isActive: true } as User] 
@@ -161,6 +177,8 @@ export default function App() {
     if (!isAddingVisit || !currentUser) return;
 
     const formData = new FormData(e.currentTarget);
+    const dangerSigns = formData.getAll('dangerSigns') as string[];
+    
     const visitData: ANCVisit = {
       id: `v${Date.now()}`,
       patientId: isAddingVisit.id,
@@ -173,7 +191,7 @@ export default function App() {
       djj: parseFloat(formData.get('djj') as string),
       hb: parseFloat(formData.get('hb') as string),
       complaints: formData.get('complaints') as string,
-      dangerSigns: formData.getAll('dangerSigns') as string[],
+      dangerSigns: dangerSigns,
       edema: formData.get('edema') === 'on',
       fetalMovement: formData.get('fetalMovement') as string,
       followUp: formData.get('followUp') as string,
@@ -182,14 +200,38 @@ export default function App() {
       status: 'COMPLETED'
     };
 
-    setState(prev => ({
-      ...prev,
-      ancVisits: [...prev.ancVisits, visitData]
-    }));
+    const finalRisk = getRiskCategory(isAddingVisit.totalRiskScore, visitData);
+
+    setState(prev => {
+      const newAlerts = [...prev.alerts];
+      if (finalRisk.label === 'HITAM' || finalRisk.label === 'MERAH') {
+        newAlerts.unshift({
+          id: `alert-${Date.now()}`,
+          type: 'EMERGENCY',
+          patientId: isAddingVisit.id,
+          patientName: isAddingVisit.name,
+          message: `Pasien terdeteksi risiko ${finalRisk.label} pada pemeriksaan hari ini!`,
+          timestamp: new Date().toISOString(),
+          isRead: false
+        });
+      }
+
+      addLog('ANC_VISIT', 'ANC', `Melakukan pemeriksaan ANC untuk ${isAddingVisit.name}`);
+      return {
+        ...prev,
+        ancVisits: [...prev.ancVisits, visitData],
+        alerts: newAlerts.slice(0, 50)
+      };
+    });
 
     setIsAddingVisit(null);
-    showNotification('Pemeriksaan & Tindak Lanjut Disimpan');
+    showNotification('Pemeriksaan Berhasil Disimpan & Terintegrasi');
   };
+
+  const liveTriase = useMemo(() => {
+    if (!isAddingVisit) return null;
+    return getRiskCategory(isAddingVisit.totalRiskScore, visitPreviewData);
+  }, [isAddingVisit, visitPreviewData]);
 
   const DashboardHome = () => {
     const patients = state.users.filter(u => u.role === UserRole.USER);
@@ -220,7 +262,13 @@ export default function App() {
     }
 
     if (currentUser?.role === UserRole.NAKES) {
-      const highRisk = patients.filter(p => p.totalRiskScore >= 8).length;
+      const highRisk = patients.filter(p => {
+        const patientVisits = state.ancVisits.filter(v => v.patientId === p.id);
+        const latest = patientVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+        const risk = getRiskCategory(p.totalRiskScore, latest);
+        return risk.label === 'HITAM' || risk.label === 'MERAH';
+      }).length;
+
       return (
         <div className="space-y-8 animate-in fade-in duration-700">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -247,7 +295,9 @@ export default function App() {
 
     if (currentUser?.role === UserRole.USER) {
       const progress = calculatePregnancyProgress(currentUser.hpht);
-      const risk = getRiskCategory(currentUser.totalRiskScore);
+      const patientVisits = state.ancVisits.filter(v => v.patientId === currentUser.id);
+      const latest = patientVisits.sort((a,b) => b.visitDate.localeCompare(a.visitDate))[0];
+      const risk = getRiskCategory(currentUser.totalRiskScore, latest);
 
       return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -258,11 +308,11 @@ export default function App() {
                   <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-6">
                     <div className="px-5 py-2.5 bg-white/10 rounded-xl border border-white/20 backdrop-blur-xl">
                        <p className="text-[8px] font-black uppercase opacity-60">Usia Hamil</p>
-                       <p className="text-lg font-black">{progress?.weeks} Minggu</p>
+                       <p className="text-lg font-black">{progress?.weeks || 0} Minggu</p>
                     </div>
                     <div className="px-5 py-2.5 bg-white/10 rounded-xl border border-white/20 backdrop-blur-xl">
                        <p className="text-[8px] font-black uppercase opacity-60">HPL</p>
-                       <p className="text-lg font-black">{progress?.hpl}</p>
+                       <p className="text-lg font-black">{progress?.hpl || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -302,7 +352,7 @@ export default function App() {
 
   if (!currentUser) return <LoginScreen users={state.users} onLogin={(u) => setCurrentUser(u)} />;
 
-  const currentRisk = getRiskCategory(tempRiskFactors.reduce((acc, id) => acc + RISK_FACTORS_MASTER[id].score, 0));
+  const currentRegisterRisk = getRiskCategory(tempRiskFactors.reduce((acc, id) => acc + (RISK_FACTORS_MASTER[id]?.score || 0), 0));
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans overflow-x-hidden">
@@ -324,7 +374,7 @@ export default function App() {
           onSearchChange = {setPatientSearch} 
           onLogout = {() => setCurrentUser(null)} 
           alerts = {state.alerts}
-          onMarkAsRead = {() => {}}
+          onMarkAsRead = {(id) => setState(prev => ({ ...prev, alerts: prev.alerts.map(a => a.id === id ? { ...a, isRead: true } : a) }))}
           onNavigateToPatient = {handleNavigate}
         />
 
@@ -336,7 +386,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Kondisi Rendering Profil Medis */}
           {viewingPatientProfile ? (
             <PatientProfileView 
               patient={state.users.find(u => u.id === viewingPatientProfile)!} 
@@ -351,8 +400,16 @@ export default function App() {
                 <PatientList 
                   users={state.users} visits={state.ancVisits} 
                   onEdit={(u) => { setEditingPatient(u); setTempRiskFactors(u.selectedRiskFactors); setView('register'); }} 
-                  onAddVisit={(u) => setIsAddingVisit(u)}
-                  onDeletePatient={(id) => setState(prev => ({...prev, users: prev.users.filter(u => u.id !== id)}))}
+                  onAddVisit={(u) => {
+                    setIsAddingVisit(u);
+                    setVisitPreviewData({ bloodPressure: '120/80', dangerSigns: [], fetalMovement: 'Normal' });
+                  }}
+                  onDeletePatient={(id) => {
+                    if(window.confirm('Hapus data pasien?')) {
+                      addLog('DELETE_PATIENT', 'PATIENT', `Menghapus pasien ID: ${id}`);
+                      setState(prev => ({...prev, users: prev.users.filter(u => u.id !== id)}))
+                    }
+                  }}
                   onDeleteVisit={() => {}}
                   onToggleVisitStatus={() => {}}
                   currentUserRole={currentUser.role} searchFilter={patientSearch}
@@ -361,6 +418,7 @@ export default function App() {
 
               {(view === 'register' && currentUser.role !== UserRole.USER) && (
                 <div className="max-w-5xl mx-auto space-y-10 animate-in zoom-in-95">
+                  {/* ... (Form Content Remains Same) ... */}
                   <div className="bg-white p-8 md:p-16 rounded-[3rem] md:rounded-[4rem] shadow-sm border border-gray-100">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
                       <div className="flex items-center gap-6">
@@ -370,10 +428,10 @@ export default function App() {
                           <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Integrasi Rekam Medis & Geospasial</p>
                         </div>
                       </div>
-                      <div className={`px-8 py-4 rounded-3xl border-2 flex items-center gap-4 transition-all duration-500 ${currentRisk.color}`}>
+                      <div className={`px-8 py-4 rounded-3xl border-2 flex items-center gap-4 transition-all duration-500 ${currentRegisterRisk.color}`}>
                         <div className="text-left">
                             <p className="text-[8px] font-black uppercase opacity-60">Status Resiko Live</p>
-                            <p className="text-sm font-black uppercase tracking-widest">{currentRisk.label}</p>
+                            <p className="text-sm font-black uppercase tracking-widest">{currentRegisterRisk.label}</p>
                         </div>
                         <Activity size={24} className="animate-pulse" />
                       </div>
@@ -466,16 +524,26 @@ export default function App() {
                 </div>
               )}
 
-              {/* Visit Form Modal - MODUL TINDAK LANJUT ANC */}
+              {/* ... (Visit Modal Content Remains Same) ... */}
               {isAddingVisit && (
                 <div className="fixed inset-0 z-[100] bg-indigo-950/70 backdrop-blur-md flex items-center justify-center p-4 md:p-10 overflow-y-auto">
                   <div className="bg-white w-full max-w-4xl rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
-                    <div className="bg-indigo-600 p-8 md:p-12 text-white flex justify-between items-center">
-                      <div>
-                        <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">Pemeriksaan ANC</h2>
+                    <div className="bg-indigo-600 p-8 md:p-12 text-white flex justify-between items-center relative overflow-hidden">
+                      <div className="relative z-10">
+                        <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">Input Pemeriksaan ANC</h2>
                         <p className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest mt-2">Ibu {isAddingVisit.name} | G{isAddingVisit.pregnancyNumber}P{isAddingVisit.parityP}A{isAddingVisit.parityA}</p>
                       </div>
-                      <button onClick={() => setIsAddingVisit(null)} className="p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"><X size={24}/></button>
+                      
+                      <div className={`relative z-10 px-6 py-3 rounded-2xl flex items-center gap-3 border-2 animate-in fade-in duration-500 ${liveTriase?.color}`}>
+                         <div className="text-left">
+                            <p className="text-[8px] font-black uppercase opacity-60">Triase Real-Time</p>
+                            <p className="text-xs font-black uppercase tracking-widest">{liveTriase?.label}</p>
+                         </div>
+                         <ShieldAlert size={20} className={liveTriase?.label === 'HITAM' ? 'animate-pulse' : ''} />
+                      </div>
+
+                      <button onClick={() => setIsAddingVisit(null)} className="relative z-10 p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"><X size={24}/></button>
+                      <Activity size={180} className="absolute -left-10 -bottom-10 opacity-5" />
                     </div>
                     
                     <form onSubmit={handleVisitSubmit} className="p-8 md:p-16 space-y-12">
@@ -486,7 +554,13 @@ export default function App() {
                           </div>
                           <div className="space-y-2">
                             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-2">TD (mmHg)</label>
-                            <input name="bp" placeholder="120/80" className="w-full p-4 bg-gray-50 border-none rounded-xl font-bold" required />
+                            <input 
+                              name="bp" 
+                              placeholder="120/80" 
+                              className="w-full p-4 bg-gray-50 border-none rounded-xl font-bold" 
+                              required 
+                              onChange={(e) => setVisitPreviewData(prev => ({ ...prev, bloodPressure: e.target.value }))}
+                            />
                           </div>
                           <div className="space-y-2">
                             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-2">TFU (cm)</label>
@@ -502,45 +576,78 @@ export default function App() {
                           </div>
                       </div>
 
-                      <div className="space-y-6">
-                          <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 underline decoration-indigo-200"><AlertCircle size={14}/> Deteksi Tanda Bahaya</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {['Pusing Hebat', 'Perdarahan', 'Nyeri Perut Hebat', 'Ketuban Pecah', 'Bengkak Wajah/Kaki', 'Demam Tinggi'].map(s => (
-                              <label key={s} className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all cursor-pointer">
-                                <input type="checkbox" name="dangerSigns" value={s} className="accent-red-600" />
-                                <span className="text-[10px] font-bold text-gray-600 uppercase">{s}</span>
-                              </label>
-                            ))}
-                          </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-6">
+                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 underline decoration-indigo-200"><AlertCircle size={14}/> Deteksi Tanda Bahaya</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                              {['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut', 'Demam'].map(s => (
+                                <label key={s} className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    name="dangerSigns" 
+                                    value={s} 
+                                    className="accent-red-600" 
+                                    onChange={(e) => {
+                                      const current = visitPreviewData.dangerSigns || [];
+                                      const updated = e.target.checked ? [...current, s] : current.filter(x => x !== s);
+                                      setVisitPreviewData(prev => ({ ...prev, dangerSigns: updated }));
+                                    }}
+                                  />
+                                  <span className="text-[9px] font-black text-gray-600 uppercase">{s}</span>
+                                </label>
+                              ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                           <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 underline decoration-indigo-200"><Baby size={14}/> Kondisi Janin</h4>
+                           <div className="space-y-4">
+                              <label className="text-[9px] font-black text-gray-500 uppercase ml-4">Gerak Janin (Persepsi Ibu)</label>
+                              <select 
+                                name="fetalMovement" 
+                                className="w-full p-5 bg-gray-50 border-none rounded-2xl font-black text-xs outline-none"
+                                onChange={(e) => setVisitPreviewData(prev => ({ ...prev, fetalMovement: e.target.value }))}
+                                required
+                              >
+                                <option value="Normal">NORMAL (AKTIF)</option>
+                                <option value="Kurang Aktif">KURANG AKTIF</option>
+                                <option value="Tidak Ada">TIDAK ADA GERAKAN (EMERGENCY)</option>
+                              </select>
+                           </div>
+                           <div className="space-y-4">
+                              <label className="text-[9px] font-black text-gray-500 uppercase ml-4">Keluhan Lainnya</label>
+                              <textarea name="complaints" placeholder="Mual, muntah, pegal, dll..." className="w-full p-5 bg-gray-50 border-none rounded-2xl font-bold text-xs outline-none" rows={2}></textarea>
+                           </div>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-indigo-50/50 p-8 rounded-[3rem] border border-indigo-100">
                           <div className="space-y-4">
-                            <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2"><ClipboardCheck size={14}/> Tindak Lanjut (Follow-Up)</h4>
+                            <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2"><ClipboardCheck size={14}/> Rencana Tindak Lanjut</h4>
                             <select name="followUp" className="w-full p-5 bg-white border border-indigo-200 rounded-2xl font-black text-xs outline-none" required>
                               <option value="RUTIN">ANC RUTIN PUSKESMAS</option>
                               <option value="KONSUL_DOKTER">KONSULTASI DOKTER SPESIALIS</option>
                               <option value="RUJUK_RS">RUJUK KE RUMAH SAKIT (KRT/KRST)</option>
-                              <option value="PEMANTAUAN_KETAT">PEMANTAUAN KETAT DI RUMAH</option>
                             </select>
-                            <textarea name="notes" placeholder="Catatan Tambahan Nakes..." className="w-full p-5 bg-white border border-indigo-200 rounded-2xl font-bold text-xs outline-none" rows={3}></textarea>
+                            <textarea name="notes" placeholder="Catatan Tambahan Bidan..." className="w-full p-5 bg-white border border-indigo-200 rounded-2xl font-bold text-xs outline-none" rows={3}></textarea>
                           </div>
                           <div className="space-y-4">
-                            <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2"><Calendar size={14}/> Rencana Kontrol</h4>
+                            <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2"><Calendar size={14}/> Penjadwalan Kontrol</h4>
                             <div className="space-y-2">
                               <label className="text-[9px] font-black text-gray-500 uppercase ml-4">Tanggal Kunjungan Berikutnya</label>
                               <input type="date" name="nextVisit" className="w-full p-5 bg-white border border-indigo-200 rounded-2xl font-black outline-none" required />
                             </div>
-                            <div className="p-4 bg-indigo-600/10 rounded-2xl">
-                              <p className="text-[9px] font-bold text-indigo-600 uppercase leading-relaxed">
-                                <Info size={12} className="inline mr-1" /> Pasien dengan risiko tinggi wajib dilakukan pemeriksaan penunjang USG/Laboratorium lengkap.
+                            <div className="p-5 bg-white rounded-2xl border border-indigo-100 flex items-start gap-3">
+                              <Info size={16} className="text-indigo-600 shrink-0" />
+                              <p className="text-[8px] font-bold text-gray-500 uppercase leading-relaxed">
+                                Data yang Anda simpan akan secara otomatis memicu notifikasi pemantauan resiko jika triase menunjukkan kondisi resiko tinggi.
                               </p>
                             </div>
                           </div>
                       </div>
 
                       <div className="flex gap-4">
-                          <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:scale-[1.02] transition-all">Simpan Pemeriksaan</button>
+                          <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:scale-[1.02] transition-all">Simpan & Update Monitoring</button>
                           <button type="button" onClick={() => setIsAddingVisit(null)} className="px-10 py-6 bg-gray-100 text-gray-500 rounded-[2rem] font-black uppercase text-xs tracking-widest">Batal</button>
                       </div>
                     </form>
@@ -548,7 +655,7 @@ export default function App() {
                 </div>
               )}
 
-              {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser!} addLog={()=>{}} />}
+              {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser!} addLog={addLog} />}
               {view === 'monitoring' && <RiskMonitoring state={state} onViewProfile={(id)=>setViewingPatientProfile(id)} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
               {view === 'map' && <MapView users={state.users} visits={state.ancVisits} />}
               {view === 'smart-card' && <SmartCardModule state={state} setState={setState} isUser={currentUser?.role === UserRole.USER} user={currentUser!} />}

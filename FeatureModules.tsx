@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid } from 'lucide-react';
+import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid, MessageSquare, Send, CheckCircle, Camera } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
 import { User, AppState, EducationContent } from './types';
@@ -38,7 +38,7 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
               <h1 className="text-4xl font-black text-indigo-900 tracking-tighter uppercase leading-none">KARTU ANC PINTAR</h1>
               <p className="text-[10px] font-black text-indigo-400 tracking-[0.4em] uppercase mt-2">Sistem Integrasi Puskesmas</p>
               <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">
-                <ShieldCheck size={12} /> Terverifikasi Medis
+                <ShieldCheck size={12} /> Login Otomatis via QR Aktif
               </div>
             </div>
             <div className="w-full space-y-5 border-t-2 border-dashed border-gray-100 pt-10">
@@ -47,9 +47,14 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
               <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Puskesmas</span><span className="font-black text-gray-900 text-xs">{PUSKESMAS_INFO.name}</span></div>
             </div>
           </div>
-          <div className="mt-10 bg-gray-900 p-6 rounded-[2.5rem] text-white flex items-center justify-between">
-            <div><p className="text-[8px] font-black uppercase opacity-40">Update Terakhir</p><p className="text-[10px] font-bold">Terintegrasi Cloud</p></div>
-            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /><span className="text-[9px] font-black">SISTEM AKTIF</span></div>
+          <div className="mt-10 bg-gray-900 p-8 rounded-[2.5rem] text-white flex flex-col items-center text-center gap-4">
+            <div className="bg-white/10 p-3 rounded-2xl">
+              <Camera size={24} className="text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Petunjuk Login Cepat</p>
+              <p className="text-[11px] font-bold mt-2">Cetak kartu ini dan gunakan fitur 'Scan Kartu' pada halaman login untuk masuk ke aplikasi tanpa mengetik username & password.</p>
+            </div>
           </div>
         </div>
       )}
@@ -182,39 +187,133 @@ export const EducationModule = () => {
 };
 
 // Modul Kontak
-export const ContactModule = () => (
-  <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-700">
-    <div className="bg-red-600 p-24 rounded-[6rem] text-white shadow-2xl relative overflow-hidden text-center">
-       <h2 className="text-7xl font-black tracking-tighter mb-8 leading-none relative z-10 uppercase">Gawat Darurat?</h2>
-       <p className="text-red-100 font-bold max-w-xl mx-auto text-lg relative z-10 mb-10">Jika mengalami tanda bahaya, segera hubungi nomor di bawah ini atau menuju puskesmas terdekat.</p>
-       <a href={`tel:${PUSKESMAS_INFO.phone}`} className="inline-flex items-center gap-4 px-12 py-6 bg-white text-red-600 rounded-full font-black text-xl shadow-2xl hover:scale-105 transition-all">
-         <Phone size={28} /> {PUSKESMAS_INFO.phone}
-       </a>
-       <div className="absolute -right-20 -top-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-      {[
-        { icon: <MapPin size={40}/>, title: "Lokasi Fisik", detail: PUSKESMAS_INFO.address },
-        { icon: <Phone size={40}/>, title: "Layanan Konsultasi", detail: "Tersedia 08.00 - 16.00 WIB" },
-        { icon: <Mail size={40}/>, title: "Email Dukungan", detail: PUSKESMAS_INFO.email }
-      ].map((card, idx) => (
-        <div key={idx} className="bg-white p-12 rounded-[4rem] shadow-sm border border-gray-100 flex flex-col items-center hover:-translate-y-2 transition-all">
-          <div className="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center text-indigo-600 mb-8 shadow-inner">{card.icon}</div>
-          <h4 className="font-black text-gray-900 text-xl mb-3 tracking-tighter">{card.title}</h4>
-          <p className="text-xs text-gray-400 font-medium leading-relaxed">{card.detail}</p>
-        </div>
-      ))}
-    </div>
-  </div>
-);
+export const ContactModule = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-// Modul Akses Ditolak
-export const AccessDenied = () => (
-  <div className="p-20 text-center animate-in zoom-in duration-500">
-    <div className="bg-red-50 p-16 rounded-[4rem] border-4 border-dashed border-red-200">
-      <UserX size={80} className="mx-auto text-red-400 mb-6" />
-      <h2 className="text-3xl font-black text-red-600 uppercase tracking-tighter">Akses Sistem Dicabut</h2>
-      <p className="text-red-500 font-bold mt-2">Silakan hubungi administrator puskesmas untuk verifikasi ulang identitas Anda.</p>
+  const handleFeedbackSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    // Simulasi pengiriman data
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setSubmitted(true);
+      // Reset state setelah beberapa detik agar form muncul kembali jika dibutuhkan
+      setTimeout(() => setSubmitted(false), 5000);
+    }, 1500);
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-700">
+      <div className="bg-red-600 p-12 md:p-24 rounded-[4rem] md:rounded-[6rem] text-white shadow-2xl relative overflow-hidden text-center">
+        <h2 className="text-4xl md:text-7xl font-black tracking-tighter mb-8 leading-none relative z-10 uppercase">Gawat Darurat?</h2>
+        <p className="text-red-100 font-bold max-w-xl mx-auto text-sm md:text-lg relative z-10 mb-10">Jika mengalami tanda bahaya, segera hubungi nomor di bawah ini atau menuju puskesmas terdekat.</p>
+        <a href={`tel:${PUSKESMAS_INFO.phone}`} className="inline-flex items-center gap-4 px-8 md:px-12 py-4 md:py-6 bg-white text-red-600 rounded-full font-black text-lg md:text-xl shadow-2xl hover:scale-105 transition-all">
+          <Phone size={28} /> {PUSKESMAS_INFO.phone}
+        </a>
+        <div className="absolute -right-20 -top-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        {[
+          { icon: <MapPin size={40}/>, title: "Lokasi Fisik", detail: PUSKESMAS_INFO.address },
+          { icon: <Phone size={40}/>, title: "Layanan Konsultasi", detail: "Tersedia 08.00 - 16.00 WIB" },
+          { icon: <Mail size={40}/>, title: "Email Dukungan", detail: PUSKESMAS_INFO.email }
+        ].map((card, idx) => (
+          <div key={idx} className="bg-white p-10 md:p-12 rounded-[3rem] md:rounded-[4rem] shadow-sm border border-gray-100 flex flex-col items-center hover:-translate-y-2 transition-all">
+            <div className="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center text-indigo-600 mb-8 shadow-inner">{card.icon}</div>
+            <h4 className="font-black text-gray-900 text-xl mb-3 tracking-tighter">{card.title}</h4>
+            <p className="text-xs text-gray-400 font-medium leading-relaxed">{card.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Formulir Feedback Baru */}
+      <div className="bg-white p-10 md:p-16 rounded-[4rem] shadow-sm border border-gray-100 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+          <div className="flex items-center gap-6">
+            <div className="bg-indigo-600 p-5 rounded-[2rem] text-white shadow-xl">
+              <MessageSquare size={32} />
+            </div>
+            <div>
+              <h3 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-none">Masukan & Saran</h3>
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-2">Bantu kami meningkatkan layanan Smart ANC</p>
+            </div>
+          </div>
+        </div>
+
+        {submitted ? (
+          <div className="py-20 text-center animate-in zoom-in duration-500">
+            <div className="bg-indigo-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
+              <CheckCircle size={48} />
+            </div>
+            <h4 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Terima Kasih!</h4>
+            <p className="text-gray-500 font-bold mt-2">Masukan Anda telah kami terima dan akan segera ditindaklanjuti.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleFeedbackSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-6">Nama Lengkap</label>
+                <input 
+                  type="text" 
+                  name="name" 
+                  placeholder="Masukkan nama Anda" 
+                  className="w-full px-8 py-5 bg-gray-50 border-none rounded-[2rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" 
+                  required 
+                />
+              </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-6">Kontrol (Email / WA)</label>
+                <input 
+                  type="text" 
+                  name="contact" 
+                  placeholder="Email atau No. WhatsApp" 
+                  className="w-full px-8 py-5 bg-gray-50 border-none rounded-[2rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" 
+                  required 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-6">Kategori Masukan</label>
+              <select 
+                name="category" 
+                className="w-full px-8 py-5 bg-gray-50 border-none rounded-[2rem] font-black text-xs outline-none focus:ring-4 focus:ring-indigo-100" 
+                required
+              >
+                <option value="SUGGESTION">SARAN PERBAIKAN FITUR</option>
+                <option value="BUG">LAPORAN BUG / KENDALA SISTEM</option>
+                <option value="QUESTION">PERTANYAAN UMUM</option>
+                <option value="OTHER">LAINNYA</option>
+              </select>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-6">Pesan Masukan</label>
+              <textarea 
+                name="message" 
+                rows={5} 
+                placeholder="Tuliskan masukan atau laporan Anda di sini..." 
+                className="w-full px-8 py-6 bg-gray-50 border-none rounded-[2.5rem] font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all" 
+                required
+              ></textarea>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className={`w-full py-6 rounded-[2.5rem] font-black uppercase text-xs tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 ${
+                isSubmitting 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-indigo-200'
+              }`}
+            >
+              {isSubmitting ? 'Mengirim...' : <><Send size={18} /> Kirim Masukan Sekarang</>}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};

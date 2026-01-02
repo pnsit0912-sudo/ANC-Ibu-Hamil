@@ -19,6 +19,10 @@
         /* Fix for Leaflet map height */
         #map-container { height: 500px; width: 100%; border-radius: 0.75rem; z-index: 10; }
         .custom-div-icon { background: none; border: none; }
+        /* QR Scanner Custom Styles */
+        #qr-reader__scan_region { border: none !important; }
+        #qr-reader { border: none !important; border-radius: 2rem; overflow: hidden; }
+        #qr-reader img { display: none !important; }
     </style>
 <script type="importmap">
 {
@@ -30,7 +34,8 @@
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react-qr-code": "https://esm.sh/react-qr-code@^2.0.18",
-    "leaflet": "https://esm.sh/leaflet@^1.9.4"
+    "leaflet": "https://esm.sh/leaflet@^1.9.4",
+    "html5-qrcode": "https://esm.sh/html5-qrcode@^2.3.8"
   }
 }
 </script>

@@ -49,7 +49,7 @@ export const getRiskCategory = (score: number, currentAncData?: any) => {
   if (currentAncData) {
     const [sys, dia] = (currentAncData.bloodPressure || "0/0").split('/').map(Number);
     const hasEmergencySigns = currentAncData.dangerSigns?.some((s: string) => 
-      ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Nyeri Kepala Hebat', 'Pandangan Kabur'].includes(s)
+      ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Nyeri Kepala Hebat', 'Pandangan Kabur', 'Pusing Hebat'].includes(s)
     );
     
     // Syarat Hitam: Hipertensi Berat ATAU Tanda Bahaya Fatal ATAU Gerak Janin Absen
@@ -57,7 +57,7 @@ export const getRiskCategory = (score: number, currentAncData?: any) => {
       return { 
         label: 'HITAM', 
         desc: 'KRITIS / GAWAT DARURAT', 
-        color: 'text-white bg-slate-950', 
+        color: 'text-white bg-slate-950 border-slate-900', 
         hex: '#020617',
         priority: 0
       };
@@ -70,7 +70,7 @@ export const getRiskCategory = (score: number, currentAncData?: any) => {
     return { 
       label: 'MERAH', 
       desc: 'Risiko Sangat Tinggi (KRST)', 
-      color: 'text-red-700 bg-red-100', 
+      color: 'text-red-700 bg-red-100 border-red-200', 
       hex: '#b91c1c',
       priority: 1
     };
@@ -81,7 +81,7 @@ export const getRiskCategory = (score: number, currentAncData?: any) => {
     return { 
       label: 'KUNING', 
       desc: 'Risiko Tinggi (KRT)', 
-      color: 'text-orange-700 bg-orange-100', 
+      color: 'text-orange-700 bg-orange-100 border-orange-200', 
       hex: '#c2410c',
       priority: 2
     };
@@ -91,7 +91,7 @@ export const getRiskCategory = (score: number, currentAncData?: any) => {
   return { 
     label: 'HIJAU', 
     desc: 'Risiko Rendah (KRR)', 
-    color: 'text-emerald-700 bg-emerald-100', 
+    color: 'text-emerald-700 bg-emerald-100 border-emerald-200', 
     hex: '#047857',
     priority: 3
   };

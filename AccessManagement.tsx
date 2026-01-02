@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { ShieldCheck, UserCheck, UserX, ClipboardList, Calendar, ShieldAlert, UserPlus, Activity, Edit3, Key, Eye, EyeOff, Search, Filter, Users, Stethoscope, UserCircle } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, ClipboardList, ShieldAlert, UserPlus, Edit3, Key, Eye, EyeOff, Search, Users, Stethoscope, UserCircle, Trash2, X, Save } from 'lucide-react';
 import { User, AppState, UserRole } from './types';
 
 interface AccessManagementProps {
@@ -15,6 +15,7 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
   const [searchTerm, setSearchTerm] = useState('');
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isAddingUser, setIsAddingUser] = useState(false);
 
   // Proteksi Akses: Hanya Admin yang bisa masuk
   if (currentUser.role !== UserRole.ADMIN) {
@@ -36,6 +37,7 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
   };
 
   const toggleUserActive = (targetUser: User) => {
+    if (targetUser.id === currentUser.id) return;
     const newStatus = !targetUser.isActive;
     setState(prev => ({
       ...prev,
@@ -44,20 +46,63 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
     addLog(newStatus ? 'GRANT_ACCESS' : 'REVOKE_ACCESS', 'ACCESS', `Admin mengubah status ${targetUser.name} (${targetUser.role}) menjadi ${newStatus ? 'AKTIF' : 'NONAKTIF'}`);
   };
 
-  const handleUpdateCredential = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (userId === currentUser.id) {
+      alert("Anda tidak dapat menghapus akun Anda sendiri.");
+      return;
+    }
+    if (window.confirm(`Apakah Anda yakin ingin menghapus permanen akun ${userName}? Data yang dihapus tidak dapat dikembalikan.`)) {
+      setState(prev => ({
+        ...prev,
+        users: prev.users.filter(u => u.id !== userId)
+      }));
+      addLog('DELETE_USER', 'ACCESS', `Admin menghapus akun ${userName}`);
+    }
+  };
+
+  const handleSaveUser = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!editingUser) return;
     const formData = new FormData(e.currentTarget);
-    const newUsername = formData.get('username') as string;
-    const newPassword = formData.get('password') as string;
+    const data: Partial<User> = {
+      name: formData.get('name') as string,
+      username: formData.get('username') as string,
+      password: formData.get('password') as string,
+      role: formData.get('role') as UserRole,
+      phone: formData.get('phone') as string,
+      isActive: true
+    };
 
-    setState(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === editingUser.id ? { ...u, username: newUsername, password: newPassword } : u)
-    }));
-
-    addLog('UPDATE_CREDENTIAL', 'ACCESS', `Admin memperbarui kredensial untuk ${editingUser.name} (${editingUser.role})`);
-    setEditingUser(null);
+    if (editingUser) {
+      setState(prev => ({
+        ...prev,
+        users: prev.users.map(u => u.id === editingUser.id ? { ...u, ...data } : u)
+      }));
+      addLog('UPDATE_USER', 'ACCESS', `Admin memperbarui data ${editingUser.name}`);
+      setEditingUser(null);
+    } else {
+      const newId = `acc-${Date.now()}`;
+      setState(prev => ({
+        ...prev,
+        users: [...prev.users, {
+          ...data,
+          id: newId,
+          dob: '1990-01-01',
+          address: '-',
+          kecamatan: 'Pasar Minggu',
+          kelurahan: 'Pasar Minggu',
+          hpht: '',
+          pregnancyMonth: 0,
+          pregnancyNumber: 0,
+          parityP: 0,
+          parityA: 0,
+          medicalHistory: 'NEW_ACCOUNT',
+          selectedRiskFactors: [],
+          totalRiskScore: 0,
+        } as User]
+      }));
+      addLog('CREATE_USER', 'ACCESS', `Admin membuat akun baru: ${data.name} (${data.role})`);
+      setIsAddingUser(false);
+    }
   };
 
   const filteredUsers = useMemo(() => {
@@ -73,30 +118,38 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
     <div className="space-y-12 animate-in fade-in duration-700">
       {/* Header Statis & Filter */}
       <div className="bg-indigo-900 p-12 rounded-[4.5rem] text-white shadow-2xl relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+        <div className="relative z-10 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8">
           <div>
             <h2 className="text-4xl font-black tracking-tighter uppercase flex items-center gap-4">
-              <ShieldCheck size={40} className="text-indigo-400" /> Manajemen Kredensial
+              <ShieldCheck size={40} className="text-indigo-400" /> Manajemen Akses
             </h2>
-            <p className="text-indigo-200 font-bold mt-2 uppercase text-[10px] tracking-widest">Kontrol Penuh Akses Admin, Nakes, dan Pasien</p>
+            <p className="text-indigo-200 font-bold mt-2 uppercase text-[10px] tracking-widest">Kontrol Penuh Admin, Nakes, dan Pasien</p>
           </div>
-          <div className="flex bg-white/10 p-2 rounded-[2rem] border border-white/10">
-            {[
-              { id: 'ALL', label: 'Semua', icon: <Users size={14}/> },
-              { id: 'ADMIN', label: 'Admin', icon: <ShieldCheck size={14}/> },
-              { id: 'NAKES', label: 'Nakes', icon: <Stethoscope size={14}/> },
-              { id: 'USER', label: 'Pasien', icon: <UserCircle size={14}/> },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeTab === tab.id ? 'bg-white text-indigo-900 shadow-xl' : 'text-indigo-200 hover:bg-white/5'
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex bg-white/10 p-2 rounded-[2rem] border border-white/10">
+              {[
+                { id: 'ALL', label: 'Semua', icon: <Users size={14}/> },
+                { id: 'ADMIN', label: 'Admin', icon: <ShieldCheck size={14}/> },
+                { id: 'NAKES', label: 'Nakes', icon: <Stethoscope size={14}/> },
+                { id: 'USER', label: 'Pasien', icon: <UserCircle size={14}/> },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
+                    activeTab === tab.id ? 'bg-white text-indigo-900 shadow-xl' : 'text-indigo-200 hover:bg-white/5'
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => setIsAddingUser(true)}
+              className="px-8 py-5 bg-indigo-500 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest flex items-center gap-3 hover:bg-indigo-400 transition-all shadow-xl"
+            >
+              <UserPlus size={18} /> Tambah Akun Baru
+            </button>
           </div>
         </div>
         <ShieldCheck size={300} className="absolute -right-20 -bottom-20 opacity-5 pointer-events-none" />
@@ -123,10 +176,10 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
               <tr>
                 <th className="px-10 py-6">Nama Pengguna</th>
                 <th className="px-10 py-6">Role</th>
-                <th className="px-10 py-6">ID Login (Username)</th>
+                <th className="px-10 py-6">ID Login</th>
                 <th className="px-10 py-6">Kata Sandi</th>
-                <th className="px-10 py-6 text-center">Akses</th>
-                <th className="px-10 py-6 text-right">Kelola</th>
+                <th className="px-10 py-6 text-center">Status</th>
+                <th className="px-10 py-6 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -138,8 +191,8 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
                   </td>
                   <td className="px-10 py-7">
                     <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                      u.role === UserRole.ADMIN ? 'bg-indigo-900 text-white' : 
-                      u.role === UserRole.NAKES ? 'bg-blue-600 text-white' : 
+                      u.role === UserRole.ADMIN ? 'bg-slate-900 text-white' : 
+                      u.role === UserRole.NAKES ? 'bg-indigo-600 text-white' : 
                       'bg-emerald-500 text-white'
                     }`}>
                       {u.role}
@@ -147,13 +200,11 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
                   </td>
                   <td className="px-10 py-7">
                     <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 w-fit">
-                      <UserCircle size={14} className="text-gray-400" />
                       <code className="text-xs font-black text-indigo-600">{u.username || 'N/A'}</code>
                     </div>
                   </td>
                   <td className="px-10 py-7">
                     <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 w-fit">
-                      <Key size={14} className="text-gray-400" />
                       <code className="text-xs font-black text-gray-600 tracking-widest">
                         {showPasswords[u.id] ? u.password : '••••••••'}
                       </code>
@@ -175,13 +226,23 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
                     </button>
                   </td>
                   <td className="px-10 py-7 text-right">
-                    <button 
-                      onClick={() => setEditingUser(u)}
-                      disabled={u.id === currentUser.id}
-                      className="p-3 bg-gray-100 text-gray-400 rounded-xl hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-0"
-                    >
-                      <Edit3 size={18} />
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => setEditingUser(u)}
+                        className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"
+                        title="Ubah Profil"
+                      >
+                        <Edit3 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteUser(u.id, u.name)}
+                        disabled={u.id === currentUser.id}
+                        className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-600 hover:text-white transition-all disabled:opacity-0"
+                        title="Hapus Akun"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -190,27 +251,59 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
         </div>
       </div>
 
-      {/* Modal Edit Kredensial */}
-      {editingUser && (
-        <div className="fixed inset-0 z-[100] bg-indigo-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300" onClick={() => setEditingUser(null)}>
-          <div className="bg-white w-full max-w-lg rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-indigo-600 p-12 text-white relative">
-              <h3 className="text-3xl font-black uppercase tracking-tighter leading-none">Ubah Kredensial</h3>
-              <p className="text-indigo-200 font-bold text-xs uppercase tracking-widest mt-2">{editingUser.name} ({editingUser.role})</p>
-              <button onClick={() => setEditingUser(null)} className="absolute top-10 right-10 p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all"><EyeOff size={20}/></button>
+      {/* Modal Form (Add/Edit) */}
+      {(isAddingUser || editingUser) && (
+        <div className="fixed inset-0 z-[100] bg-indigo-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300" onClick={() => { setIsAddingUser(false); setEditingUser(null); }}>
+          <div className="bg-white w-full max-w-xl rounded-[4rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-indigo-600 p-12 text-white relative overflow-hidden">
+              <h3 className="text-3xl font-black uppercase tracking-tighter leading-none relative z-10">
+                {editingUser ? 'Ubah Data Akun' : 'Daftarkan Akun Baru'}
+              </h3>
+              <p className="text-indigo-200 font-bold text-xs uppercase tracking-widest mt-2 relative z-10">
+                {editingUser ? editingUser.name : 'Tambahkan Admin atau Nakes baru ke sistem'}
+              </p>
+              <button onClick={() => { setIsAddingUser(false); setEditingUser(null); }} className="absolute top-10 right-10 p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all z-10">
+                <X size={20}/>
+              </button>
+              <ShieldCheck size={200} className="absolute -right-20 -bottom-20 opacity-10 rotate-12" />
             </div>
-            <form onSubmit={handleUpdateCredential} className="p-12 space-y-8">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Username Baru</label>
-                <input name="username" defaultValue={editingUser.username} className="w-full px-8 py-5 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100" required />
+            <form onSubmit={handleSaveUser} className="p-12 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Nama Lengkap</label>
+                <input name="name" defaultValue={editingUser?.name} className="w-full px-8 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100" required />
               </div>
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Password Baru</label>
-                <input name="password" defaultValue={editingUser.password} className="w-full px-8 py-5 bg-gray-50 border-none rounded-2xl font-bold outline-none focus:ring-4 focus:ring-indigo-100" required />
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Level Akses (Role)</label>
+                  <select name="role" defaultValue={editingUser?.role || UserRole.NAKES} className="w-full px-8 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none">
+                    <option value={UserRole.ADMIN}>ADMINISTRATOR</option>
+                    <option value={UserRole.NAKES}>TENAGA KESEHATAN</option>
+                    <option value={UserRole.USER}>PASIEN (USER)</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">No. HP / WhatsApp</label>
+                  <input name="phone" defaultValue={editingUser?.phone} className="w-full px-8 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none" required />
+                </div>
               </div>
-              <div className="pt-4 flex gap-4">
-                <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:bg-indigo-700">Simpan Perubahan</button>
-                <button type="button" onClick={() => setEditingUser(null)} className="px-10 py-6 bg-gray-100 text-gray-500 rounded-[2rem] font-black uppercase text-xs tracking-widest">Batal</button>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Username</label>
+                  <input name="username" defaultValue={editingUser?.username} className="w-full px-8 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Password</label>
+                  <input name="password" defaultValue={editingUser?.password} className="w-full px-8 py-4 bg-gray-50 border-none rounded-2xl font-bold outline-none" required />
+                </div>
+              </div>
+
+              <div className="pt-6 flex gap-4">
+                <button type="submit" className="flex-1 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:bg-indigo-700 flex items-center justify-center gap-2">
+                  <Save size={18} /> Simpan Perubahan
+                </button>
+                <button type="button" onClick={() => { setIsAddingUser(false); setEditingUser(null); }} className="px-10 py-6 bg-gray-100 text-gray-500 rounded-[2rem] font-black uppercase text-xs tracking-widest">Batal</button>
               </div>
             </form>
           </div>
@@ -234,6 +327,9 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
                </div>
             </div>
           ))}
+          {state.logs.filter(l => l.module === 'ACCESS').length === 0 && (
+            <p className="text-[10px] font-black text-gray-300 uppercase text-center py-6">Belum ada riwayat perubahan akses.</p>
+          )}
         </div>
       </div>
     </div>

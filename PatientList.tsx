@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Users, Edit3, Calendar, AlertTriangle, Trash2, Baby, Phone, CheckCircle2, AlertCircle, Clock, Activity, ShieldAlert, ChevronRight, MapPin } from 'lucide-react';
+import { Users, Edit3, Calendar, AlertTriangle, Trash2, Baby, Phone, CheckCircle2, AlertCircle, Clock, Activity, ShieldAlert, ChevronRight, MapPin, Download } from 'lucide-react';
 import { User, ANCVisit, UserRole } from './types';
 import { getRiskCategory } from './utils';
 
@@ -17,7 +17,7 @@ interface PatientListProps {
 }
 
 export const PatientList: React.FC<PatientListProps> = ({ 
-  users, visits, onEdit, onAddVisit, onDeletePatient, searchFilter 
+  users, visits, onEdit, onAddVisit, onDeletePatient, searchFilter, currentUserRole 
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const today = new Date().toISOString().split('T')[0];
@@ -25,6 +25,51 @@ export const PatientList: React.FC<PatientListProps> = ({
   const filteredUsers = users.filter(u => 
     u.role === 'USER' && (u.name.toLowerCase().includes(searchFilter.toLowerCase()))
   );
+
+  const handleExportCSV = () => {
+    // Definisi Header CSV
+    const headers = [
+      'Nama Lengkap', 'Telepon', 'Kelurahan', 'Skor Risiko', 'Triase', 
+      'Gravida (G)', 'Para (P)', 'Abortus (A)', 'Usia Hamil (Bulan)', 
+      'Tgl Kontrol Terakhir', 'TD Terakhir', 'BB Terakhir', 'Hb Terakhir', 'Catatan Nakes'
+    ];
+
+    // Map data pasien ke baris CSV
+    const rows = filteredUsers.map(u => {
+      const patientVisits = visits.filter(v => v.patientId === u.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
+      const latest = patientVisits[0];
+      const risk = getRiskCategory(u.totalRiskScore, latest);
+      
+      return [
+        `"${u.name}"`,
+        `"${u.phone}"`,
+        `"${u.kelurahan}"`,
+        u.totalRiskScore + 2,
+        risk.label,
+        u.pregnancyNumber,
+        u.parityP,
+        u.parityA,
+        u.pregnancyMonth,
+        latest?.visitDate || '-',
+        `"${latest?.bloodPressure || '-'}"`,
+        latest?.weight || '-',
+        latest?.hb || '-',
+        `"${(latest?.nakesNotes || '-').replace(/"/g, '""')}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Data_Pasien_ANC_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="bg-white rounded-3xl md:rounded-[4rem] shadow-sm border border-gray-100 overflow-hidden animate-in fade-in duration-700">
@@ -35,6 +80,15 @@ export const PatientList: React.FC<PatientListProps> = ({
             </h2>
             <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Monitoring Puskesmas Terpadu</p>
          </div>
+
+         {currentUserRole === UserRole.ADMIN && (
+           <button 
+             onClick={handleExportCSV}
+             className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:scale-105 active:scale-95 transition-all"
+           >
+             <Download size={16} /> Export Data CSV
+           </button>
+         )}
       </div>
 
       <div className="overflow-x-auto no-scrollbar">
@@ -76,7 +130,7 @@ export const PatientList: React.FC<PatientListProps> = ({
                     </div>
                   </td>
                   <td className="px-6 md:px-12 py-4 md:py-9">
-                    <p className="text-xs font-black text-indigo-900">G{u.pregnancyNumber}P{u.pregnancyNumber-1}</p>
+                    <p className="text-xs font-black text-indigo-900">G{u.pregnancyNumber}P{u.parityP}A{u.parityA}</p>
                     <p className="text-[8px] font-bold text-gray-400 uppercase">{u.pregnancyMonth} Bulan</p>
                   </td>
                   <td className="px-6 md:px-12 py-4 md:py-9">
