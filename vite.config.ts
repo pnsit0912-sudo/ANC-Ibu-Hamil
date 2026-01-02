@@ -10,6 +10,15 @@ export default defineConfig({
       input: {
         main: './index.html',
       },
+      // Beritahu Rollup untuk tidak mencoba membundel pustaka ini karena sudah ada di importmap index.html
+      external: [
+        '@google/genai',
+        'react',
+        'react-dom',
+        'lucide-react',
+        'react-qr-code',
+        'leaflet'
+      ],
     },
   },
   server: {
