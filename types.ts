@@ -25,9 +25,11 @@ export interface User {
   lng?: number;
   hpht: string;
   pregnancyMonth: number; 
-  pregnancyNumber: number;
-  medicalHistory: string; // Deskripsi singkat
-  selectedRiskFactors: string[]; // ID dari faktor resiko
+  pregnancyNumber: number; // Gravida (G)
+  parityP: number; // Para (P)
+  parityA: number; // Abortus (A)
+  medicalHistory: string;
+  selectedRiskFactors: string[];
   totalRiskScore: number;
   role: UserRole;
   phone: string;
@@ -40,17 +42,17 @@ export interface ANCVisit {
   visitDate: string;
   scheduledDate: string;
   nextVisitDate: string;
-  weight: number; // kg
+  weight: number;
   bloodPressure: string;
-  tfu: number; // cm
-  djj: number; // bpm
-  hb: number; // g/dL
+  tfu: number;
+  djj: number;
+  hb: number;
   complaints: string;
-  dangerSigns: string[]; // Checkbox tanda bahaya
+  dangerSigns: string[];
   edema: boolean;
   fetalMovement: string;
   followUp: string;
-  nakesNotes: string; // Tambahan catatan khusus nakes
+  nakesNotes: string;
   nakesId: string;
   status: 'COMPLETED' | 'MISSED' | 'SCHEDULED';
 }
