@@ -7,12 +7,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    // Menghapus minify: 'terser' karena esbuild adalah default yang lebih cepat dan sudah terintegrasi
     minify: 'esbuild',
+    chunkSizeWarningLimit: 1600, // Menaikkan limit untuk menghilangkan warning
     rollupOptions: {
-      input: {
-        main: './index.html',
-      }
+      output: {
+        // Memisahkan node_modules menjadi file tersendiri agar build lebih optimal
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        },
+      },
     },
   },
   server: {
