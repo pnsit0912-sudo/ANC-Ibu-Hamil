@@ -8,12 +8,14 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     minify: 'esbuild',
-    chunkSizeWarningLimit: 1600, // Menaikkan limit untuk menghilangkan warning
+    target: 'esnext',
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        // Memisahkan node_modules menjadi file tersendiri agar build lebih optimal
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('lucide-react')) return 'icons';
+            if (id.includes('leaflet')) return 'map';
             return 'vendor';
           }
         },
@@ -22,5 +24,6 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: true
   }
 });

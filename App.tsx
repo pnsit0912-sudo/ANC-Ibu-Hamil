@@ -8,7 +8,7 @@ import {
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, Activity, 
   MapPin, ShieldAlert, QrCode, BookOpen, Map as MapIcon, Phone, Navigation as NavIcon, Crosshair,
   RefreshCw, Stethoscope, Heart, Droplets, Thermometer, ClipboardCheck, ArrowRight, ExternalLink,
-  Info, Bell, Eye, Star, TrendingUp, CheckSquare, Zap, Shield, List, Sparkles, BrainCircuit, Waves, Utensils, Download, Upload
+  Info, Bell, Eye, Star, TrendingUp, CheckSquare, Zap, Shield, List, Sparkles, BrainCircuit, Waves, Utensils, Download, Upload, Database
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -64,7 +64,7 @@ export default function App() {
         if (!parsed.userChecklists) parsed.userChecklists = {};
         if (!parsed.ancVisits || parsed.ancVisits.length === 0) parsed.ancVisits = MOCK_ANC_VISITS;
         return parsed; 
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("Gagal memuat database lokal:", e); }
     }
     
     return {
@@ -74,7 +74,7 @@ export default function App() {
       alerts: [],
       selectedPatientId: null,
       logs: [
-        { id: 'l1', timestamp: new Date().toISOString(), userId: 'system', userName: 'System', action: 'INIT', module: 'CORE', details: 'Sistem Smart ANC Versi 4 Berhasil Dimuat' }
+        { id: 'l1', timestamp: new Date().toISOString(), userId: 'system', userName: 'System', action: 'INIT', module: 'CORE', details: 'Sistem Smart ANC Berhasil Dimuat' }
       ],
       userChecklists: {}
     };
@@ -121,11 +121,10 @@ export default function App() {
       try {
         const content = e.target?.result as string;
         const importedState = JSON.parse(content);
-        // Basic validation
         if (importedState.users && Array.isArray(importedState.users)) {
           setState(importedState);
           showNotification("Database berhasil diimpor & disinkronkan");
-          addLog('IMPORT_DB', 'SYSTEM', 'Admin melakukan restorasi/import database sistem');
+          addLog('IMPORT_DB', 'SYSTEM', 'Admin melakukan restorasi database');
         } else {
           alert("File JSON tidak valid.");
         }
@@ -397,13 +396,13 @@ export default function App() {
                 </div>
                 <div className="mt-8 p-8 bg-slate-900 rounded-[2.5rem] text-white flex items-center justify-between relative overflow-hidden group">
                    <div className="relative z-10 flex items-center gap-4">
-                      <ShieldCheck className="text-emerald-400" size={32} />
+                      <Database className="text-emerald-400" size={32} />
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Proteksi Sistem</p>
-                        <p className="text-sm font-black uppercase">Keamanan Data Terjamin</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Status Database</p>
+                        <p className="text-sm font-black uppercase">LocalStorage Aktif (Deksripsi Domain)</p>
                       </div>
                    </div>
-                   <button onClick={() => window.print()} className="relative z-10 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase transition-all">Cetak Laporan</button>
+                   <button onClick={handleExportSystemData} className="relative z-10 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase transition-all">Export Data</button>
                    <Waves className="absolute -bottom-10 -right-10 text-white/5 w-64 h-64 rotate-45" />
                 </div>
              </div>
@@ -805,7 +804,7 @@ export default function App() {
                       </div>
                       <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 flex items-start gap-3">
                          <Info size={16} className="text-amber-600 shrink-0" />
-                         <p className="text-[9px] font-black text-amber-700 uppercase leading-relaxed tracking-widest">Penting untuk pemetaan wilayah resiko tinggi dan percepatan respon darurat.</p>
+                         <p className="text-[9px] font-black text-amber-700 uppercase leading-relaxed tracking-widest">Penting untuk pemetaan wilayah resiko tinggi dan respon darurat.</p>
                       </div>
                     </div>
                   </div>
@@ -826,7 +825,7 @@ export default function App() {
                   </div>
 
                   <div className="pt-16 border-t border-gray-100 flex gap-8">
-                    <button type="submit" className="flex-1 py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.3em] shadow-2xl shadow-indigo-200 hover:scale-105 active:scale-95 transition-all">Simpan Rekam Medis Pasien</button>
+                    <button type="submit" className="flex-1 py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.3em] shadow-2xl shadow-indigo-200 hover:scale-105 active:scale-95 transition-all">Simpan Rekam Medis</button>
                     <button type="button" onClick={() => handleNavigate('patients')} className="px-16 py-7 bg-gray-100 text-gray-500 rounded-[2.5rem] font-black uppercase text-sm tracking-widest hover:bg-gray-200 transition-all">Batalkan</button>
                   </div>
                 </form>
@@ -954,7 +953,7 @@ export default function App() {
                         </div>
                         <div className="p-3 md:p-8 bg-indigo-600 rounded-lg md:rounded-[2.5rem] text-white flex items-start gap-2 md:gap-4 shadow-xl">
                           <Info size={16} className="shrink-0" />
-                          <p className="text-[7px] md:text-[10px] font-black uppercase tracking-widest leading-relaxed">Sistem akan otomatis mengirimkan sinyal peringatan jika kondisi pasien terdeteksi gawat darurat (Hitam).</p>
+                          <p className="text-[7px] md:text-[10px] font-black uppercase tracking-widest leading-relaxed">Sistem akan otomatis mengirimkan sinyal peringatan jika kondisi pasien kritis (Hitam).</p>
                         </div>
                       </div>
                   </div>
