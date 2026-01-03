@@ -48,14 +48,17 @@ export const getRiskCategory = (scoreFromFactors: number, currentAncData?: any) 
   // 1. TRIASE HITAM (GAWAT DARURAT KLINIS)
   if (currentAncData) {
     const bpStr = currentAncData.bloodPressure || "0/0";
-    const [sys, dia] = bpStr.split('/').map(Number);
+    const bpParts = bpStr.split('/');
+    const sys = bpParts.length > 0 ? Number(bpParts[0]) : 0;
+    const dia = bpParts.length > 1 ? Number(bpParts[1]) : 0;
+    
     const djj = Number(currentAncData.djj || 140);
     
     const hasFatalSigns = currentAncData.dangerSigns?.some((s: string) => 
       ['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut Hebat'].includes(s)
     );
     
-    if (sys >= 160 || dia >= 110 || hasFatalSigns || currentAncData.fetalMovement === 'Tidak Ada' || djj < 120 || djj > 160) {
+    if ((sys >= 160 && sys < 500) || (dia >= 110 && dia < 500) || hasFatalSigns || currentAncData.fetalMovement === 'Tidak Ada' || djj < 120 || djj > 160) {
       return { 
         label: 'HITAM', 
         desc: 'KRITIS / EMERGENCY - RUJUK SEGERA', 

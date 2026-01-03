@@ -6,17 +6,12 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist',
+    sourcemap: false,
+    minify: 'terser',
     rollupOptions: {
       input: {
         main: './index.html',
-      },
-      external: [
-        'react',
-        'react-dom',
-        'lucide-react',
-        'react-qr-code',
-        'leaflet'
-      ],
+      }
     },
   },
   server: {
