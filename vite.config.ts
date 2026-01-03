@@ -7,7 +7,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
+    // Menghapus minify: 'terser' karena esbuild adalah default yang lebih cepat dan sudah terintegrasi
+    minify: 'esbuild',
     rollupOptions: {
       input: {
         main: './index.html',
