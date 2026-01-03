@@ -8,7 +8,7 @@ import {
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, Activity, 
   MapPin, ShieldAlert, QrCode, BookOpen, Map as MapIcon, Phone, Navigation as NavIcon, Crosshair,
   RefreshCw, Stethoscope, Heart, Droplets, Thermometer, ClipboardCheck, ArrowRight, ExternalLink,
-  Info, Bell, Eye, Star, TrendingUp, CheckSquare, Zap, Shield, List, Sparkles, BrainCircuit, Waves, Utensils
+  Info, Bell, Eye, Star, TrendingUp, CheckSquare, Zap, Shield, List, Sparkles, BrainCircuit, Waves, Utensils, Download, Upload
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -29,7 +29,6 @@ const DAILY_TASKS = [
   { task: 'Konsumsi Protein Tinggi', time: 'Sarapan/Maksi', icon: <Utensils size={16} /> }
 ];
 
-// Pengganti AI: Panduan Medis Otomatis
 const getTrimesterAdvice = (weeks: number) => {
   if (weeks <= 13) return "Trimester 1: Fokus pada asupan Asam Folat untuk perkembangan saraf janin. Istirahat cukup jika sering mual (morning sickness).";
   if (weeks <= 26) return "Trimester 2: Mulai hitung gerakan janin. Konsumsi kalsium tinggi untuk pembentukan tulang bayi dan cegah anemia dengan zat besi.";
@@ -101,6 +100,41 @@ export default function App() {
       logs: [newLog, ...prev.logs].slice(0, 100)
     }));
   }, [currentUser]);
+
+  const handleExportSystemData = () => {
+    const dataStr = JSON.stringify(state, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    const exportFileDefaultName = `SMART_ANC_DB_EXPORT_${new Date().toISOString().split('T')[0]}.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+    showNotification("Database berhasil diekspor");
+  };
+
+  const handleImportSystemData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    fileReader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedState = JSON.parse(content);
+        // Basic validation
+        if (importedState.users && Array.isArray(importedState.users)) {
+          setState(importedState);
+          showNotification("Database berhasil diimpor & disinkronkan");
+          addLog('IMPORT_DB', 'SYSTEM', 'Admin melakukan restorasi/import database sistem');
+        } else {
+          alert("File JSON tidak valid.");
+        }
+      } catch (err) {
+        alert("Gagal membaca file database.");
+      }
+    };
+    fileReader.readAsText(files[0]);
+  };
 
   const toggleDailyTask = (patientId: string, taskTitle: string) => {
     setState(prev => {
@@ -486,7 +520,6 @@ export default function App() {
 
       return (
         <div className="space-y-10 animate-in fade-in duration-700">
-          {/* Welcome Section */}
           <div className="bg-indigo-600 p-10 md:p-16 rounded-[4.5rem] text-white shadow-2xl relative overflow-hidden group">
              <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-16">
                 <div className="text-center lg:text-left space-y-8 max-w-2xl">
@@ -517,7 +550,6 @@ export default function App() {
                       </div>
                    </div>
 
-                   {/* Pengganti AI: Trimester Guidance */}
                    <div className="bg-white/10 p-6 rounded-[2.5rem] border border-white/20 backdrop-blur-3xl flex items-start gap-4 text-left shadow-xl group-hover:-translate-y-1 transition-transform">
                       <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-lg shrink-0">
                          <ShieldCheck size={24} className="animate-pulse" />
@@ -529,7 +561,6 @@ export default function App() {
                    </div>
                 </div>
 
-                {/* Progress Visual */}
                 <div className="relative">
                    <div className="w-64 h-64 md:w-80 md:h-80 rounded-full border-[16px] border-white/20 flex items-center justify-center relative shadow-inner">
                       <div className="text-center animate-in zoom-in duration-1000">
@@ -549,7 +580,6 @@ export default function App() {
              <Baby size={400} className="absolute -left-20 -bottom-20 opacity-5 pointer-events-none rotate-12" />
           </div>
 
-          {/* Detailed Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
              <div className="bg-white p-10 rounded-[4rem] border border-gray-100 shadow-sm space-y-10 group hover:shadow-2xl transition-all duration-500">
                 <div className="flex items-center justify-between">
@@ -938,7 +968,7 @@ export default function App() {
             </div>
           )}
 
-          {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser!} addLog={addLog} />}
+          {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser!} addLog={addLog} onExport={handleExportSystemData} onImport={handleImportSystemData} />}
           {view === 'monitoring' && <RiskMonitoring state={state} onViewProfile={(id)=>setViewingPatientProfile(id)} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
           {view === 'map' && <MapView users={state.users} visits={state.ancVisits} />}
           {view === 'smart-card' && <SmartCardModule state={state} setState={setState} isUser={currentUser?.role === UserRole.USER} user={currentUser!} />}
