@@ -295,6 +295,151 @@ export default function App() {
     const patients = useMemo(() => state.users.filter(u => u.role === UserRole.USER), [state.users]);
     const today = new Date().toISOString().split('T')[0];
 
+    // Dashboard Khusus Ibu Hamil (USER)
+    if (currentUser?.role === UserRole.USER) {
+      const progress = calculatePregnancyProgress(currentUser.hpht);
+      const babySize = getBabySizeByWeek(progress?.weeks || 0);
+      const userVisits = state.ancVisits.filter(v => v.patientId === currentUser.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
+      const latest = userVisits[0];
+      const risk = getRiskCategory(currentUser.totalRiskScore, latest);
+      const checklist = state.userChecklists[currentUser.id] || {};
+
+      return (
+        <div className="space-y-8 md:space-y-12 animate-in fade-in duration-700">
+          {/* Welcome Card & Baby Growth */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10">
+            <div className="lg:col-span-2 bg-indigo-600 p-8 md:p-14 rounded-[3rem] md:rounded-[4.5rem] text-white shadow-2xl relative overflow-hidden group">
+               <div className="relative z-10">
+                 <h2 className="text-3xl md:text-5xl font-black tracking-tighter leading-none mb-6">Halo, Ibu {currentUser.name.split(' ')[0]}! ✨</h2>
+                 <p className="text-indigo-100 font-bold text-sm md:text-lg max-w-lg mb-10 leading-relaxed">
+                   {getTrimesterAdvice(progress?.weeks || 0)}
+                 </p>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                    <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/10">
+                       <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Minggu Ke</p>
+                       <p className="text-2xl font-black mt-1">{progress?.weeks || 0}</p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/10">
+                       <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Estimasi Lahir</p>
+                       <p className="text-xs font-black mt-2 leading-tight">{progress?.hpl || 'N/A'}</p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/10">
+                       <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Status Risiko</p>
+                       <p className={`text-[10px] font-black mt-2 px-2 py-1 rounded-lg w-fit ${risk.color}`}>{risk.label}</p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/10">
+                       <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Kunjungan Berikutnya</p>
+                       <p className="text-xs font-black mt-2">{latest?.nextVisitDate || 'N/A'}</p>
+                    </div>
+                 </div>
+               </div>
+               <Baby size={280} className="absolute -right-16 -bottom-16 opacity-10 rotate-12 pointer-events-none transition-transform duration-1000 group-hover:scale-110" />
+            </div>
+
+            <div className="bg-white p-10 rounded-[3rem] md:rounded-[4rem] shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center relative overflow-hidden">
+               <div className="text-6xl md:text-8xl mb-6 animate-bounce duration-[2000ms]">{babySize.icon}</div>
+               <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-2">Ukuran Janin Saat Ini</h3>
+               <p className="text-2xl md:text-3xl font-black text-gray-900 tracking-tighter">Seukuran {babySize.name}</p>
+               <div className="mt-8 w-full bg-gray-50 p-4 rounded-2xl flex items-center justify-between">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Progress</span>
+                  <span className="text-xs font-black text-indigo-600">{progress?.percentage}%</span>
+               </div>
+               <div className="mt-2 w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${progress?.percentage}%` }} />
+               </div>
+               <Sparkles className="absolute top-6 right-6 text-indigo-100" size={32} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
+            {/* Checklist Harian */}
+            <div className="bg-white p-8 md:p-12 rounded-[3rem] md:rounded-[4rem] shadow-sm border border-gray-100">
+               <div className="flex items-center justify-between mb-10">
+                  <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-4">
+                     <List className="text-indigo-600" size={28} /> Rutinitas Sehat Hari Ini
+                  </h3>
+                  <div className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+                     {Object.values(checklist).filter(Boolean).length}/{DAILY_TASKS.length} Selesai
+                  </div>
+               </div>
+               <div className="space-y-4">
+                  {DAILY_TASKS.map((item, idx) => (
+                    <button 
+                       key={idx}
+                       onClick={() => toggleDailyTask(currentUser.id, item.task)}
+                       className={`w-full flex items-center justify-between p-6 rounded-[2rem] border-4 transition-all group ${
+                         checklist[item.task] 
+                           ? 'bg-emerald-50 border-emerald-500 shadow-emerald-100' 
+                           : 'bg-gray-50 border-transparent hover:border-gray-200'
+                       }`}
+                    >
+                       <div className="flex items-center gap-5">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
+                            checklist[item.task] ? 'bg-emerald-500 text-white' : 'bg-white text-indigo-600 shadow-sm border border-gray-100'
+                          }`}>
+                             {item.icon}
+                          </div>
+                          <div className="text-left">
+                             <p className={`text-sm font-black uppercase tracking-tight ${checklist[item.task] ? 'text-emerald-900 line-through opacity-50' : 'text-gray-900'}`}>{item.task}</p>
+                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">{item.time}</p>
+                          </div>
+                       </div>
+                       <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+                         checklist[item.task] ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-200 group-hover:border-indigo-400'
+                       }`}>
+                          {checklist[item.task] && <CheckCircle size={14} />}
+                       </div>
+                    </button>
+                  ))}
+               </div>
+            </div>
+
+            {/* Health Snapshot */}
+            <div className="space-y-8">
+               <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-4 px-2">
+                  <Stethoscope className="text-indigo-600" size={28} /> Hasil Pemeriksaan Terakhir
+               </h3>
+               {latest ? (
+                 <div className="grid grid-cols-2 gap-4 md:gap-6">
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm transition-transform hover:scale-105">
+                       <div className="bg-indigo-50 w-12 h-12 rounded-2xl flex items-center justify-center text-indigo-600 mb-4"><Activity size={20}/></div>
+                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tekanan Darah</p>
+                       <p className="text-2xl font-black text-gray-900 mt-1">{latest.bloodPressure}</p>
+                    </div>
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm transition-transform hover:scale-105">
+                       <div className="bg-rose-50 w-12 h-12 rounded-2xl flex items-center justify-center text-rose-600 mb-4"><Heart size={20}/></div>
+                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Detak Jantung Janin</p>
+                       <p className="text-2xl font-black text-gray-900 mt-1">{latest.djj} <span className="text-sm opacity-40">x/m</span></p>
+                    </div>
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm transition-transform hover:scale-105">
+                       <div className="bg-blue-50 w-12 h-12 rounded-2xl flex items-center justify-center text-blue-600 mb-4"><Droplets size={20}/></div>
+                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Kadar Hemoglobin</p>
+                       <p className="text-2xl font-black text-gray-900 mt-1">{latest.hb} <span className="text-sm opacity-40">g/dL</span></p>
+                    </div>
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm transition-transform hover:scale-105">
+                       <div className="bg-emerald-50 w-12 h-12 rounded-2xl flex items-center justify-center text-emerald-600 mb-4"><ClipboardCheck size={20}/></div>
+                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Berat Badan</p>
+                       <p className="text-2xl font-black text-gray-900 mt-1">{latest.weight} <span className="text-sm opacity-40">Kg</span></p>
+                    </div>
+                 </div>
+               ) : (
+                 <div className="bg-white p-20 rounded-[3rem] border-4 border-dashed border-gray-100 text-center">
+                    <AlertCircle className="mx-auto text-gray-200 mb-4" size={48} />
+                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Belum ada catatan medis tersedia</p>
+                 </div>
+               )}
+               <button 
+                  onClick={() => handleNavigate('smart-card')}
+                  className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center justify-center gap-4 hover:bg-slate-800 transition-all active:scale-95"
+               >
+                  <QrCode size={18} /> Tunjukkan Kartu ANC Pintar Saya
+               </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (currentUser?.role === UserRole.ADMIN) {
       return (
         <div className="space-y-10 animate-in fade-in duration-700">
@@ -348,12 +493,6 @@ export default function App() {
     }
 
     if (currentUser?.role === UserRole.NAKES) {
-      const missedPatients = patients.filter(p => {
-        const pVisits = state.ancVisits.filter(v => v.patientId === p.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
-        const latest = pVisits[0];
-        return latest && latest.nextVisitDate < today;
-      });
-
       const priorityList = patients.map(p => {
         const pVisits = state.ancVisits.filter(v => v.patientId === p.id).sort((a,b) => b.visitDate.localeCompare(a.visitDate));
         const latest = pVisits[0];
@@ -365,10 +504,10 @@ export default function App() {
         <div className="space-y-10 animate-in fade-in duration-700">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              <div className="bg-red-600 p-10 rounded-[3rem] text-white shadow-xl relative overflow-hidden group">
-                <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">Ibu Mangkir Kontrol</p>
-                <h3 className="text-5xl font-black mt-2 tracking-tighter">{missedPatients.length} <span className="text-xl opacity-50">Pasien</span></h3>
-                <button onClick={() => { setPatientSearch('MANGKIR'); setView('patients'); }} className="mt-8 px-6 py-3 bg-white text-red-600 rounded-xl text-[10px] font-black uppercase shadow-lg group-hover:scale-105 transition-transform">Lihat Daftar Mangkir</button>
-                <UserX size={120} className="absolute -right-6 -bottom-6 opacity-10 rotate-12" />
+                <p className="text-[10px] font-black uppercase opacity-70 tracking-widest">Pasien Emergensi</p>
+                <h3 className="text-5xl font-black mt-2 tracking-tighter">{priorityList.length} <span className="text-xl opacity-50">Ibu</span></h3>
+                <button onClick={() => handleNavigate('monitoring')} className="mt-8 px-6 py-3 bg-white text-red-600 rounded-xl text-[10px] font-black uppercase shadow-lg group-hover:scale-105 transition-transform">Pantau Risiko</button>
+                <ShieldAlert size={120} className="absolute -right-6 -bottom-6 opacity-10 rotate-12" />
              </div>
              <div className="bg-indigo-600 p-10 rounded-[3rem] text-white shadow-xl flex flex-col justify-between">
                 <div><p className="text-[10px] font-black uppercase opacity-70 tracking-widest">Antrian ANC Hari Ini</p><h3 className="text-5xl font-black mt-2 tracking-tighter">{state.ancVisits.filter(v => v.visitDate === today).length} <span className="text-xl opacity-50">Selesai</span></h3></div>
@@ -413,14 +552,10 @@ export default function App() {
     return null;
   };
 
-  // Fixed error: Added liveTriase computation using useMemo to fix "Cannot find name 'liveTriase'" errors
-  const liveTriase = useMemo(() => {
-    if (!isAddingVisit) return null;
-    return getRiskCategory(isAddingVisit.totalRiskScore, visitPreviewData);
-  }, [isAddingVisit, visitPreviewData]);
-
   if (!currentUser) return <LoginScreen users={state.users} onLogin={(u) => setCurrentUser(u)} />;
+
   const currentRegisterRisk = getRiskCategory(tempRiskFactors.reduce((acc, id) => acc + (RISK_FACTORS_MASTER[id]?.score || 0), 0));
+  const liveTriase = isAddingVisit ? getRiskCategory(isAddingVisit.totalRiskScore, visitPreviewData) : null;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans overflow-x-hidden">
@@ -474,7 +609,7 @@ export default function App() {
                       <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">TFU (cm)</label><input name="tfu" type="number" step="0.1" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
                       <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">DJJ (x/m)</label><input name="djj" type="number" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required onChange={(e) => setVisitPreviewData(prev => ({ ...prev, djj: Number(e.target.value) }))} /></div>
                       <div className="space-y-3 col-span-2 md:col-span-1"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Hb (g/dL)</label><input name="hb" type="number" step="0.1" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
-                  </div><div className="grid grid-cols-1 md:grid-cols-2 gap-16"><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><AlertCircle size={16}/> Observasi Bahaya</h4><div className="grid grid-cols-2 gap-4">{['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut Hebat', 'Demam'].map(s => (<label key={s} className="flex items-center gap-5 p-5 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all cursor-pointer border-2 border-transparent hover:border-red-200 group"><input type="checkbox" name="dangerSigns" value={s} className="accent-red-600 w-5 h-5 shrink-0" onChange={(e) => { const current = visitPreviewData.dangerSigns || []; const updated = e.target.checked ? [...current, s] : current.filter(x => x !== s); setVisitPreviewData(prev => ({ ...prev, dangerSigns: updated })); }} /><span className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:text-red-600 truncate">{s}</span></label>))}</div></div><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><Baby size={16}/> Kondisi Janin</h4><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Gerak Janin</label><select name="fetalMovement" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-sm outline-none focus:ring-8 focus:ring-indigo-50" onChange={(e) => setVisitPreviewData(prev => ({ ...prev, fetalMovement: e.target.value }))} required><option value="Normal">NORMAL / AKTIF</option><option value="Kurang Aktif">KURANG AKTIF</option><option value="Tidak Ada">TIDAK ADA (EMERGENCY)</option></select></div><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Keluhan</label><textarea name="complaints" placeholder="Tuliskan jika ada..." className="w-full p-6 bg-gray-50 border-none rounded-[2rem] font-bold text-sm outline-none focus:ring-8 focus:ring-indigo-50" rows={3}></textarea></div></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10 bg-indigo-50/50 p-10 rounded-[3.5rem] border border-indigo-100"><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><ClipboardCheck size={16}/> Rencana (Plan)</h4><select name="followUp" className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black text-xs outline-none focus:ring-8 focus:ring-indigo-100" required><option value="ANC_RUTIN">KONTROL RUTIN</option><option value="KONSUL_DOKTER">KONSULTASI OBGYN</option><option value="RUJUK_RS">RUJUK RS (KRITIS)</option></select><textarea name="notes" placeholder="Catatan Bidan..." className="w-full p-6 bg-white border border-indigo-200 rounded-[2rem] font-bold text-xs outline-none focus:ring-8 focus:ring-indigo-100" rows={3}></textarea></div><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><Calendar size={16}/> Jadwal Ulang</h4><div className="space-y-2"><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">Kontrol Berikutnya</label><input type="date" name="nextVisit" className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black outline-none text-base" required /></div><div className="p-8 bg-indigo-600 rounded-[2.5rem] text-white flex items-start gap-4 shadow-xl"><Info size={16} className="shrink-0" /><p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">Sistem akan otomatis memberi flag mangkir jika pasien melewati tanggal ini.</p></div></div></div><div className="flex flex-col md:flex-row gap-8 pb-4"><button type="submit" className="w-full md:flex-1 py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.3em] shadow-2xl transition-all">Selesaikan</button><button type="button" onClick={() => setIsAddingVisit(null)} className="w-full md:py-7 px-16 bg-gray-100 text-gray-500 rounded-[2.5rem] font-black uppercase text-sm tracking-widest hover:bg-gray-200 transition-all">Batal</button></div></form></div></div>
+                  </div><div className="grid grid-cols-1 md:grid-cols-2 gap-16"><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><AlertCircle size={16}/> Observasi Bahaya</h4><div className="grid grid-cols-2 gap-4">{['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut Hebat', 'Demam'].map(s => (<label key={s} className="flex items-center gap-5 p-5 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all cursor-pointer border-2 border-transparent hover:border-red-200 group"><input type="checkbox" name="dangerSigns" value={s} className="accent-red-600 w-5 h-5 shrink-0" onChange={(e) => { const current = visitPreviewData.dangerSigns || []; const updated = e.target.checked ? [...current, s] : current.filter(x => x !== s); setVisitPreviewData(prev => ({ ...prev, dangerSigns: updated })); }} /><span className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:text-red-600 truncate">{s}</span></label>))}</div></div><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><Baby size={16}/> Kondisi Janin</h4><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Gerak Janin</label><select name="fetalMovement" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-sm outline-none focus:ring-8 focus:ring-indigo-50" onChange={(e) => setVisitPreviewData(prev => ({ ...prev, fetalMovement: e.target.value }))} required><option value="Normal">NORMAL / AKTIF</option><option value="Kurang Aktif">KURANG AKTIF</option><option value="Tidak Ada">TIDAK ADA (EMERGENCY)</option></select></div><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Keluhan</label><textarea name="complaints" placeholder="Tuliskan jika ada..." className="w-full p-6 bg-gray-50 border-none rounded-[2rem] font-bold text-sm outline-none focus:ring-8 focus:ring-indigo-50" rows={3}></textarea></div></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10 bg-indigo-50/50 p-10 rounded-[3.5rem] border border-indigo-100"><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><ClipboardCheck size={16}/> Rencana (Plan)</h4><select name="followUp" className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black text-xs outline-none focus:ring-8 focus:ring-indigo-100" required><option value="ANC_RUTIN">KONTROL RUTIN</option><option value="KONSUL_DOKTER">KONSULTASI OBGYN</option><option value="RUJUK_RS">RUJUK RS (KRITIS)</option></select><textarea name="notes" placeholder="Catatan Bidan..." className="w-full p-6 bg-white border border-indigo-200 rounded-[2rem] font-bold text-xs outline-none focus:ring-8 focus:ring-indigo-100" rows={3}></textarea></div><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><Calendar size={16}/> Jadwal Ulang</h4><div className="space-y-2"><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">Kontrol Berikutnya</label><input type="date" name="nextVisit" className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black outline-none text-base" required /></div><div className="p-8 bg-indigo-600 rounded-[2.5rem] text-white flex items-start gap-4 shadow-xl"><Info size={16} className="shrink-0" /><p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">Pastikan hadir tepat waktu untuk menjaga kesehatan Ibu dan Buah Hati.</p></div></div></div><div className="flex flex-col md:flex-row gap-8 pb-4"><button type="submit" className="w-full md:flex-1 py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.3em] shadow-2xl transition-all">Selesaikan</button><button type="button" onClick={() => setIsAddingVisit(null)} className="w-full md:py-7 px-16 bg-gray-100 text-gray-500 rounded-[2.5rem] font-black uppercase text-sm tracking-widest hover:bg-gray-200 transition-all">Batal</button></div></form></div></div>
           )}
           {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser!} addLog={addLog} onExport={handleExportSystemData} onImport={handleImportSystemData} />}
           {view === 'monitoring' && <RiskMonitoring state={state} onViewProfile={(id)=>setViewingPatientProfile(id)} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
