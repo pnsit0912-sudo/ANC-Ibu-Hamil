@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-// Added RefreshCw to imports to fix the "Cannot find name 'RefreshCw'" error
-import { ShieldCheck, UserCheck, UserX, ClipboardList, ShieldAlert, UserPlus, Edit3, Key, Eye, EyeOff, Search, Users, Stethoscope, UserCircle, Trash2, X, Save, Download, Upload, CloudSync, RefreshCw } from 'lucide-react';
+import { ShieldCheck, UserCheck, UserX, ClipboardList, ShieldAlert, UserPlus, Edit3, Key, Eye, EyeOff, Search, Users, Stethoscope, UserCircle, Trash2, X, Save } from 'lucide-react';
 import { User, AppState, UserRole } from './types';
 
 interface AccessManagementProps {
@@ -9,11 +8,9 @@ interface AccessManagementProps {
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   currentUser: User;
   addLog: (action: string, module: string, details: string) => void;
-  onExport: () => void;
-  onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setState, currentUser, addLog, onExport, onImport }) => {
+export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setState, currentUser, addLog }) => {
   const [activeTab, setActiveTab] = useState<'ALL' | 'ADMIN' | 'NAKES' | 'USER'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
@@ -119,31 +116,7 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      {/* Migration Sync Section */}
-      <div className="bg-white p-10 rounded-[3.5rem] border border-indigo-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8">
-        <div className="flex items-center gap-6">
-          <div className="bg-indigo-50 p-5 rounded-3xl text-indigo-600">
-            <RefreshCw size={32} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter leading-none">Sinkronisasi Migrasi</h3>
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-2">Pindahkan data antar Google AI Studio & Vercel</p>
-          </div>
-        </div>
-        <div className="flex gap-4">
-          <button 
-            onClick={onExport}
-            className="px-8 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:scale-105 transition-all flex items-center gap-3"
-          >
-            <Download size={16} /> Ekspor Database
-          </button>
-          <label className="px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:scale-105 transition-all flex items-center gap-3 cursor-pointer">
-            <Upload size={16} /> Impor Database
-            <input type="file" className="hidden" accept=".json" onChange={onImport} />
-          </label>
-        </div>
-      </div>
-
+      {/* Header Statis & Filter */}
       <div className="bg-indigo-900 p-12 rounded-[4.5rem] text-white shadow-2xl relative overflow-hidden">
         <div className="relative z-10 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8">
           <div>
@@ -182,6 +155,7 @@ export const AccessManagement: React.FC<AccessManagementProps> = ({ state, setSt
         <ShieldCheck size={300} className="absolute -right-20 -bottom-20 opacity-5 pointer-events-none" />
       </div>
 
+      {/* Kontrol Utama & Tabel */}
       <div className="bg-white rounded-[3.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between gap-6 bg-gray-50/30">
           <div className="relative flex-1">

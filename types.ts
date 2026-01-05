@@ -84,8 +84,6 @@ export interface AppState {
   alerts: SystemAlert[];
   selectedPatientId: string | null;
   logs: SystemLog[];
-  // Key adalah patientId, value adalah Record<taskTitle, isDone>
-  userChecklists: Record<string, Record<string, boolean>>;
 }
 
 export interface EducationContent {

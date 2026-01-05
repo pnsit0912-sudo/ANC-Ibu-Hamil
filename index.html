@@ -7,34 +7,75 @@
     <title>Smart ANC - Puskesmas Pasar Minggu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Leaflet CSS -->
+    <!-- Leaflet CSS for free mapping -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
         body { font-family: 'Inter', sans-serif; }
+        
+        /* PRINT STYLES OPTIMIZATION */
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
+            
+            /* Reset layout for print */
+            body, #root { 
+                background: white !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+            }
+            
+            /* Remove margins from the main content area */
+            main { 
+                margin-left: 0 !important; 
+                padding: 0 !important;
+            }
+
+            /* Content wrapper inside App.tsx */
+            main > div {
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+
+            /* Force backgrounds to print */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            /* Ensure the card takes full width of paper */
+            .print-full-card {
+                width: 100% !important;
+                border: 1px solid #e5e7eb !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+            }
         }
+
         .print-only { display: none; }
+        
+        /* Fix for Leaflet map height */
         #map-container { height: 500px; width: 100%; border-radius: 0.75rem; z-index: 10; }
         .custom-div-icon { background: none; border: none; }
-        /* Smooth scrolling */
-        html { scroll-behavior: smooth; }
-        /* Hide scrollbar for clean UI */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* QR Scanner Custom Styles */
+        #qr-reader__scan_region { border: none !important; }
+        #qr-reader { border: none !important; border-radius: 2rem; overflow: hidden; }
+        #qr-reader img { display: none !important; }
     </style>
 <script type="importmap">
 {
   "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "vite": "https://esm.sh/vite@^7.3.0",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-qr-code": "https://esm.sh/react-qr-code@^2.0.18",
     "leaflet": "https://esm.sh/leaflet@^1.9.4",
-    "react-qr-code": "https://esm.sh/react-qr-code@^2.0.18"
+    "html5-qrcode": "https://esm.sh/html5-qrcode@^2.3.8"
   }
 }
 </script>

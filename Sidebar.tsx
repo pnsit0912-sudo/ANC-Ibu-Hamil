@@ -28,25 +28,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Backdrop for Pop-up mode on small screens */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-indigo-950/60 backdrop-blur-sm z-[100] lg:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-indigo-950/60 backdrop-blur-sm z-[45] lg:hidden transition-opacity duration-300"
           onClick={onToggle}
         />
       )}
 
-      <aside className={`no-print fixed inset-y-0 left-0 z-[101] w-72 md:w-80 bg-white border-r border-gray-100 transform transition-all duration-500 ease-in-out ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      <aside className={`no-print fixed inset-y-0 left-0 z-50 w-72 md:w-80 bg-white border-r border-gray-100 transform transition-all duration-500 ease-in-out ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <div className="h-full flex flex-col p-6 md:p-10">
           <div className="flex items-center justify-between mb-10 md:mb-16">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-600 p-2 md:p-3 rounded-2xl text-white shadow-xl rotate-3">
-                <CheckCircle size={18} className="md:w-5 md:h-5" />
+                <CheckCircle size={20} />
               </div>
               <span className="text-xl md:text-2xl font-black tracking-tighter">Smart ANC</span>
             </div>
             <button 
               onClick={onToggle}
-              className="p-2.5 bg-gray-50 text-gray-400 hover:text-indigo-600 rounded-xl lg:hidden"
+              className="p-3 bg-gray-50 text-gray-400 hover:text-indigo-600 rounded-2xl lg:hidden"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
             <button 
               onClick={onToggle}
@@ -61,14 +61,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button 
                 key={nav.path} 
                 onClick={() => onNavigate(nav.path)} 
-                className={`w-full flex items-center gap-4 px-4 py-3 md:px-5 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black transition-all group ${
+                className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl text-[11px] font-black transition-all group ${
                   currentView === nav.path 
                     ? 'bg-indigo-600 text-white shadow-lg' 
                     : 'text-gray-400 hover:bg-gray-50 hover:text-indigo-600'
                 }`}
               >
-                <span className="transition-transform group-hover:scale-110 shrink-0">{nav.icon}</span>
-                <span className="truncate">{nav.name}</span>
+                <span className="transition-transform group-hover:scale-110">{nav.icon}</span>
+                {nav.name}
               </button>
             ))}
           </nav>
@@ -76,9 +76,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="mt-auto pt-6 border-t border-gray-100">
             <button 
               onClick={onLogout} 
-              className="w-full flex items-center gap-4 px-4 py-3.5 md:px-5 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black text-red-500 hover:bg-red-50 transition-all"
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-[11px] font-black text-red-500 hover:bg-red-50 transition-all"
             >
-              <LogOut size={18} className="shrink-0" /> Keluar
+              <LogOut size={20} /> Keluar
             </button>
           </div>
         </div>

@@ -1,11 +1,22 @@
 
 import React, { useMemo, useState } from 'react';
 import { 
-  Activity, CalendarDays, ChevronDown, FileSpreadsheet, Heart, MapPin, BarChart3, ShieldAlert
+  AlertTriangle, Activity, ClipboardList, TrendingUp, 
+  Search, Filter, Stethoscope, Heart, AlertCircle, ShieldAlert,
+  ArrowRight, CheckCircle2, Info, MapPin, BarChart3, PieChart
 } from 'lucide-react';
 import { User, ANCVisit, AppState, UserRole } from './types';
 import { WILAYAH_DATA } from './constants';
 import { getRiskCategory } from './utils';
+
+// Define explicit interface for statistics to fix type errors
+interface RegionStats {
+  total: number;
+  hitam: number;
+  merah: number;
+  kuning: number;
+  hijau: number;
+}
 
 interface RiskMonitoringProps {
   state: AppState;
@@ -14,71 +25,44 @@ interface RiskMonitoringProps {
   onToggleVisitStatus: (visitId: string) => void;
 }
 
-type StatData = { total: number, hitam: number, merah: number, kuning: number, hijau: number };
-
-export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit }) => {
+export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewProfile, onAddVisit, onToggleVisitStatus }) => {
   const { users, ancVisits } = state;
   const [filterKelurahan, setFilterKelurahan] = useState<string>('ALL');
-  
-  const currentYear = new Date().getFullYear().toString();
-  const [filterYear, setFilterYear] = useState<string>(currentYear);
-  const [filterQuarter, setFilterQuarter] = useState<string>('ALL');
 
-  const availableYears = useMemo(() => {
-    const years = new Set<string>();
-    years.add(currentYear);
-    ancVisits.forEach(v => years.add(new Date(v.visitDate).getFullYear().toString()));
-    return Array.from(years).sort((a, b) => b.localeCompare(a));
-  }, [ancVisits, currentYear]);
-
-  // OPTIMASI: Filter dan Kelompokkan kunjungan berdasarkan periode sekali saja
-  const visitsByPatientInPeriod = useMemo(() => {
-    const grouped: Record<string, ANCVisit[]> = {};
-    ancVisits.forEach(v => {
-      const date = new Date(v.visitDate);
-      const year = date.getFullYear().toString();
-      const month = date.getMonth(); 
-      const quarter = Math.floor(month / 3) + 1;
-
-      const matchYear = filterYear === 'ALL' || year === filterYear;
-      const matchQuarter = filterQuarter === 'ALL' || quarter.toString() === filterQuarter;
-
-      if (matchYear && matchQuarter) {
-        if (!grouped[v.patientId]) grouped[v.patientId] = [];
-        grouped[v.patientId].push(v);
-      }
-    });
-    return grouped;
-  }, [ancVisits, filterYear, filterQuarter]);
-
-  // OPTIMASI: Kalkulasi analisis risiko menggunakan index periode
+  // Integrasi Skoring Terpusat
   const riskAnalysis = useMemo(() => {
-    const patientIdsInPeriod = new Set(Object.keys(visitsByPatientInPeriod));
-    const allTimePatients = users.filter(u => u.role === UserRole.USER);
+    const today = new Date().toISOString().split('T')[0];
     
-    return allTimePatients
-      .filter(u => (filterYear === 'ALL' && filterQuarter === 'ALL') ? true : patientIdsInPeriod.has(u.id))
+    return users
+      .filter(u => u.role === UserRole.USER)
       .map(patient => {
-        const periodVisits = (visitsByPatientInPeriod[patient.id] || []).sort((a, b) => b.visitDate.localeCompare(a.visitDate));
-        const latestVisitInPeriod = periodVisits[0];
+        const patientVisits = ancVisits.filter(v => v.patientId === patient.id);
+        const latestVisit = patientVisits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
         
-        const risk = getRiskCategory(patient.totalRiskScore, latestVisitInPeriod);
+        // GUNAKAN FUNGSI PUSAT (utils.ts)
+        const risk = getRiskCategory(patient.totalRiskScore, latestVisit);
         
         let riskFlags: string[] = [];
-        if (latestVisitInPeriod?.bloodPressure) {
-          const [sys, dia] = latestVisitInPeriod.bloodPressure.split('/').map(Number);
+
+        // Deteksi Flag Tambahan untuk Tampilan Monitoring
+        if (latestVisit?.nextVisitDate && latestVisit.nextVisitDate < today) {
+           riskFlags.push('KUNJUNGAN TERLAMBAT');
+        }
+        if (latestVisit?.bloodPressure) {
+          const [sys, dia] = latestVisit.bloodPressure.split('/').map(Number);
           if (sys >= 140 || dia >= 90) riskFlags.push('Hipertensi');
         }
-        if (latestVisitInPeriod?.fetalMovement === 'Kurang Aktif') riskFlags.push('Gerak Janin ↓');
-        if (latestVisitInPeriod?.edema) riskFlags.push('Edema (+)');
+        if (latestVisit?.fetalMovement === 'Kurang Aktif') riskFlags.push('Gerak Janin ↓');
+        if (latestVisit?.edema) riskFlags.push('Edema (+)');
 
-        return { ...patient, riskLevel: risk.label, riskFlags, latestVisit: latestVisitInPeriod, priority: risk.priority };
+        return { ...patient, riskLevel: risk.label, riskFlags, latestVisit, priority: risk.priority };
       });
-  }, [users, visitsByPatientInPeriod, filterYear, filterQuarter]);
+  }, [users, ancVisits]);
 
+  // Agregasi Statistik Wilayah
   const statsAggregation = useMemo(() => {
-    const kecStats: Record<string, StatData> = {};
-    const kelStats: Record<string, StatData> = {};
+    const kecStats: Record<string, RegionStats> = {};
+    const kelStats: Record<string, RegionStats> = {};
 
     Object.keys(WILAYAH_DATA).forEach(kec => {
       kecStats[kec] = { total: 0, hitam: 0, merah: 0, kuning: 0, hijau: 0 };
@@ -90,156 +74,28 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
     riskAnalysis.forEach(p => {
       const kec = p.kecamatan || "Pasar Minggu";
       const kel = p.kelurahan;
-      const levelKey = p.riskLevel.toLowerCase() as keyof StatData;
+      const levelKey = p.riskLevel.toLowerCase() as 'hitam'|'merah'|'kuning'|'hijau';
 
       if (kecStats[kec]) {
         kecStats[kec].total++;
-        if (typeof kecStats[kec][levelKey] === 'number') (kecStats[kec][levelKey] as number)++;
+        kecStats[kec][levelKey]++;
       }
       if (kelStats[kel]) {
         kelStats[kel].total++;
-        if (typeof kelStats[kel][levelKey] === 'number') (kelStats[kel][levelKey] as number)++;
+        kelStats[kel][levelKey]++;
       }
     });
 
     return { kecStats, kelStats };
   }, [riskAnalysis]);
 
-  const filteredRiskList = useMemo(() => {
-    return riskAnalysis.filter(p => 
-      filterKelurahan === 'ALL' || p.kelurahan === filterKelurahan
-    ).sort((a, b) => (a.priority || 0) - (b.priority || 0));
-  }, [riskAnalysis, filterKelurahan]);
-
-  const handleExportReport = () => {
-    const headers = [
-      'Nama Pasien', 'NIK/ID', 'Kelurahan', 'Status Risiko', 'Skor Dasar', 
-      'TD Terakhir', 'Tgl Periksa Terakhir', 'Bendera Risiko'
-    ];
-
-    const rows = filteredRiskList.map(p => [
-      `"${p.name}"`,
-      `"${p.id}"`,
-      `"${p.kelurahan}"`,
-      p.riskLevel,
-      p.totalRiskScore + 2,
-      `"${p.latestVisit?.bloodPressure || '-'}"`,
-      p.latestVisit?.visitDate || '-',
-      `"${((p.riskFlags as string[]).join('; '))}"`
-    ].join(','));
-
-    const summary: any[][] = [
-      ['LAPORAN MONITORING RISIKO ANC'],
-      [`Periode: ${filterYear === 'ALL' ? 'Semua Tahun' : filterYear} - ${filterQuarter === 'ALL' ? 'Tahunan' : 'Triwulan ' + filterQuarter}`],
-      [`Wilayah: ${filterKelurahan === 'ALL' ? 'Seluruh Kelurahan' : filterKelurahan}`],
-      [],
-      ['RINGKASAN STATISTIK'],
-      ['Kategori', 'Jumlah'],
-      ['Kritis (Hitam)', riskAnalysis.filter(p => p.riskLevel === 'HITAM').length],
-      ['Tinggi (Merah)', riskAnalysis.filter(p => p.riskLevel === 'MERAH').length],
-      ['Sedang (Kuning)', riskAnalysis.filter(p => p.riskLevel === 'KUNING').length],
-      ['Stabil (Hijau)', riskAnalysis.filter(p => p.riskLevel === 'HIJAU').length],
-      ['Total Pasien Dalam Periode', riskAnalysis.length],
-      [],
-      ['DATA DETAIL PASIEN PRIORITAS'],
-      headers
-    ];
-
-    const csvContent = summary.map(r => r.join(',')).join('\n') + '\n' + rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Laporan_Monitoring_ANC_${filterYear}_Q${filterQuarter}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const filteredRiskList = riskAnalysis.filter(p => 
+    filterKelurahan === 'ALL' || p.kelurahan === filterKelurahan
+  ).sort((a, b) => (a.priority || 0) - (b.priority || 0));
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-xl border border-white flex flex-col xl:flex-row items-center justify-between gap-8">
-        <div className="flex items-center gap-6">
-          <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-lg shadow-indigo-100">
-            <CalendarDays size={24} />
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Periode Monitoring</h2>
-            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Optimalisasi Analisis Performa</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-          <div className="flex-1 md:flex-none">
-            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Tahun</label>
-            <div className="relative">
-              <select 
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                className="w-full md:w-40 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
-              >
-                <option value="ALL">Semua Tahun</option>
-                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="flex-1 md:flex-none">
-            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Triwulan</label>
-            <div className="relative">
-              <select 
-                value={filterQuarter}
-                onChange={(e) => setFilterQuarter(e.target.value)}
-                className="w-full md:w-56 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
-              >
-                <option value="ALL">Semua Triwulan</option>
-                <option value="1">Triwulan I (Jan - Mar)</option>
-                <option value="2">Triwulan II (Apr - Jun)</option>
-                <option value="3">Triwulan III (Jul - Sep)</option>
-                <option value="4">Triwulan IV (Okt - Des)</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="flex-1 md:flex-none">
-            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-4 block mb-1">Pilih Wilayah</label>
-            <div className="relative">
-              <select 
-                value={filterKelurahan} 
-                onChange={(e) => setFilterKelurahan(e.target.value)}
-                className="w-full md:w-56 pl-6 pr-10 py-3.5 bg-gray-50 border-none rounded-2xl font-black text-[10px] uppercase appearance-none outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
-              >
-                <option value="ALL">Seluruh Kelurahan</option>
-                {WILAYAH_DATA["Pasar Minggu"].map(kel => <option key={kel} value={kel}>{kel}</option>)}
-              </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="flex-1 md:flex-none pt-4 xl:pt-0">
-             <button 
-               onClick={handleExportReport}
-               className="w-full xl:w-auto px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 hover:scale-105 transition-all flex items-center justify-center gap-3"
-             >
-               <FileSpreadsheet size={16} /> Tarik Data CSV
-             </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 animate-in slide-in-from-left-4">
-        <div className="h-px flex-1 bg-gray-100" />
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">
-          Data Aktif: {filterYear === 'ALL' ? 'Semua Tahun' : filterYear} 
-          {filterQuarter !== 'ALL' && ` - Triwulan ${filterQuarter}`}
-        </p>
-        <div className="h-px flex-1 bg-gray-100" />
-      </div>
-
+      {/* 1. Dashboard Ringkasan Eksekutif */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Kritis (Hitam)', count: riskAnalysis.filter(p => p.riskLevel === 'HITAM').length, color: 'bg-slate-950', text: 'text-white' },
@@ -257,6 +113,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         ))}
       </div>
 
+      {/* 2. Visualisasi Analitik */}
       <div className="space-y-8">
         <div className="flex items-center gap-3">
           <BarChart3 className="text-indigo-600" size={28} />
@@ -273,9 +130,8 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
               </div>
 
               <div className="space-y-8">
-                {/* Fix: Cast Object.entries value to StatData to avoid 'unknown' type error */}
-                {Object.entries(statsAggregation.kecStats).map(([kec, val]) => {
-                  const stat = val as StatData;
+                {/* Fixed property access on unknown type by casting Object.entries */}
+                {(Object.entries(statsAggregation.kecStats) as [string, RegionStats][]).map(([kec, stat]) => {
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
                   
@@ -284,7 +140,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                       <div className="flex justify-between items-end">
                         <div>
                           <p className="text-xl font-black text-gray-900 tracking-tighter">{kec}</p>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase">Total: {stat.total} Pasien Terlayani</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase">Total: {stat.total} Pasien</p>
                         </div>
                         <div className="text-right">
                           <p className={`text-2xl font-black ${density > 30 ? 'text-red-600' : 'text-indigo-600'}`}>{density.toFixed(1)}%</p>
@@ -315,9 +171,8 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Fix: Cast Object.entries value to StatData to avoid 'unknown' type error */}
-                {Object.entries(statsAggregation.kelStats).map(([kel, val]) => {
-                  const stat = val as StatData;
+                {/* Fixed property access on unknown type by casting Object.entries */}
+                {(Object.entries(statsAggregation.kelStats) as [string, RegionStats][]).map(([kel, stat]) => {
                   const highRiskCount = stat.hitam + stat.merah;
                   const density = stat.total > 0 ? (highRiskCount / stat.total) * 100 : 0;
                   
@@ -326,7 +181,7 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
                       <div className="flex justify-between items-start mb-6">
                         <div>
                           <p className="font-black text-gray-900 text-sm uppercase leading-none mb-1">{kel}</p>
-                          <p className="text-[9px] font-black text-gray-400 uppercase">Pelayanan: {stat.total}</p>
+                          <p className="text-[9px] font-black text-gray-400 uppercase">Total: {stat.total}</p>
                         </div>
                         <div className="text-right">
                           <p className={`text-xl font-black ${density > 20 ? 'text-red-600' : 'text-indigo-600'}`}>{density.toFixed(0)}%</p>
@@ -361,74 +216,86 @@ export const RiskMonitoring: React.FC<RiskMonitoringProps> = ({ state, onViewPro
         </div>
       </div>
 
+      {/* 3. Monitoring Pasien Prioritas (Detail) */}
       <div className="space-y-8">
         <div className="flex items-center justify-between">
-          <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3">
-            <Heart size={28} className="text-red-600" /> Daftar Pantau Terpadu ({filteredRiskList.length} Pasien)
-          </h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3">
+              <Heart size={28} className="text-red-600" /> Daftar Pantau Terpadu
+            </h3>
+            <div className="bg-white p-2 rounded-xl border border-gray-100 flex items-center gap-2 shadow-sm">
+              <Filter size={14} className="text-gray-400 ml-2" />
+              <select 
+                value={filterKelurahan} 
+                onChange={(e) => setFilterKelurahan(e.target.value)}
+                className="bg-transparent text-[10px] font-black uppercase outline-none pr-4 cursor-pointer"
+              >
+                <option value="ALL">Seluruh Wilayah</option>
+                {WILAYAH_DATA["Pasar Minggu"].map(kel => <option key={kel} value={kel}>{kel}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
 
-        {filteredRiskList.length === 0 ? (
-          <div className="bg-white p-20 rounded-[4rem] border-4 border-dashed border-gray-100 text-center">
-            <Activity size={48} className="mx-auto text-gray-100 mb-4" />
-            <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em]">Tidak Ada Data Pasien Untuk Periode Ini</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredRiskList.map(p => (
-              <div 
-                key={p.id} 
-                className={`group relative p-8 rounded-[3.5rem] border-2 transition-all hover:scale-[1.02] hover:shadow-2xl ${
-                  p.riskLevel === 'HITAM' ? 'bg-slate-950 border-slate-900 text-white shadow-slate-200' : 
-                  p.riskLevel === 'MERAH' ? 'bg-red-50 border-red-100' : 
-                  p.riskLevel === 'KUNING' ? 'bg-yellow-50 border-yellow-100' : 
-                  'bg-white border-gray-50'
-                }`}
-              >
-                <div className="mb-6">
-                  <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border ${
-                    p.riskLevel === 'HITAM' ? 'bg-white/10 border-white/20 text-red-400' : 
-                    p.riskLevel === 'MERAH' ? 'bg-red-500 border-red-600 text-white' : 
-                    p.riskLevel === 'KUNING' ? 'bg-yellow-400 border-yellow-500 text-yellow-950' : 
-                    'bg-emerald-500 border-emerald-600 text-white'
-                  }`}>
-                    Triase {p.riskLevel}
-                  </span>
-                  <p className={`text-[9px] font-bold uppercase tracking-[0.2em] mt-3 ${p.riskLevel === 'HITAM' ? 'text-slate-500' : 'text-gray-400'}`}>
-                    Kelurahan {p.kelurahan}
-                  </p>
-                </div>
-
-                <div className="mb-6">
-                  <h4 className={`text-2xl font-black leading-tight tracking-tighter ${p.riskLevel === 'HITAM' ? 'text-white' : 'text-gray-900'}`}>
-                    {p.name}
-                  </h4>
-                  <p className={`text-[10px] font-bold mt-1 ${p.riskLevel === 'HITAM' ? 'text-slate-400' : 'text-gray-500'}`}>
-                     Pemeriksaan Terakhir: {p.latestVisit?.visitDate || 'Baru Terdaftar'}
-                  </p>
-                </div>
-
-                <div className={`space-y-3 p-5 rounded-[1.5rem] mb-8 ${p.riskLevel === 'HITAM' ? 'bg-white/5 border border-white/10' : 'bg-white/50 border border-current/5'}`}>
-                   <div className="flex flex-wrap gap-2">
-                     <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-white/10' : 'bg-indigo-50 text-indigo-600'}`}>
-                       TD: {p.latestVisit?.bloodPressure || 'N/A'}
-                     </span>
-                     {(p.riskFlags as string[]).map((flag, idx) => (
-                       <span key={idx} className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-red-900/30 text-red-300' : 'bg-red-50 text-red-600'}`}>
-                         {flag}
-                       </span>
-                     ))}
-                   </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button onClick={() => onViewProfile(p.id)} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white text-slate-900' : 'bg-indigo-600 text-white'}`}>Profil Medis</button>
-                  <button onClick={() => onAddVisit(p)} className={`p-4 rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-400'}`}><Activity size={18}/></button>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredRiskList.map(p => (
+            <div 
+              key={p.id} 
+              className={`group relative p-8 rounded-[3.5rem] border-2 transition-all hover:scale-[1.02] hover:shadow-2xl ${
+                p.riskLevel === 'HITAM' ? 'bg-slate-950 border-slate-900 text-white shadow-slate-200' : 
+                p.riskLevel === 'MERAH' ? 'bg-red-50 border-red-100' : 
+                p.riskLevel === 'KUNING' ? 'bg-yellow-50 border-yellow-100' : 
+                'bg-white border-gray-50'
+              }`}
+            >
+              <div className="mb-6">
+                <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest border ${
+                  p.riskLevel === 'HITAM' ? 'bg-white/10 border-white/20 text-red-400' : 
+                  p.riskLevel === 'MERAH' ? 'bg-red-500 border-red-600 text-white' : 
+                  p.riskLevel === 'KUNING' ? 'bg-yellow-400 border-yellow-500 text-yellow-950' : 
+                  'bg-emerald-500 border-emerald-600 text-white'
+                }`}>
+                  Triase {p.riskLevel}
+                </span>
+                <p className={`text-[9px] font-bold uppercase tracking-[0.2em] mt-3 ${p.riskLevel === 'HITAM' ? 'text-slate-500' : 'text-gray-400'}`}>
+                  Kelurahan {p.kelurahan}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
+
+              <div className="mb-6">
+                <h4 className={`text-2xl font-black leading-tight tracking-tighter ${p.riskLevel === 'HITAM' ? 'text-white' : 'text-gray-900'}`}>
+                  {p.name}
+                </h4>
+                <p className={`text-[10px] font-bold mt-1 ${p.riskLevel === 'HITAM' ? 'text-slate-400' : 'text-gray-500'}`}>
+                   Skor Dasar: {p.totalRiskScore + 2}
+                </p>
+              </div>
+
+              <div className={`space-y-3 p-5 rounded-[1.5rem] mb-8 ${p.riskLevel === 'HITAM' ? 'bg-white/5 border border-white/10' : 'bg-white/50 border border-current/5'}`}>
+                 <div className="flex flex-wrap gap-2">
+                   <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-white/10' : 'bg-indigo-50 text-indigo-600'}`}>
+                     TD: {p.latestVisit?.bloodPressure || 'N/A'}
+                   </span>
+                   {p.riskFlags.map((flag, idx) => (
+                     <span key={idx} className={`px-2 py-1 rounded-lg text-[10px] font-black ${p.riskLevel === 'HITAM' ? 'bg-red-900/30 text-red-300' : 'bg-red-50 text-red-600'}`}>
+                       {flag}
+                     </span>
+                   ))}
+                   {p.riskFlags.length === 0 && (
+                     <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black flex items-center gap-1">
+                       <CheckCircle2 size={10} /> Stabil
+                     </span>
+                   )}
+                 </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => onViewProfile(p.id)} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white text-slate-900' : 'bg-indigo-600 text-white'}`}>Profil Medis</button>
+                <button onClick={() => onAddVisit(p)} className={`p-4 rounded-2xl transition-all ${p.riskLevel === 'HITAM' ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-400'}`}><Activity size={18}/></button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
