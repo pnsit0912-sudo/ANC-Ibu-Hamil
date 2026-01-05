@@ -43,11 +43,10 @@ export const MapView: React.FC<MapViewProps> = ({ users, visits }) => {
 
       // Pemetaan Marker Pasien Berdasarkan Triase Terintegrasi
       users.filter(u => u.role === UserRole.USER && u.lat).forEach(p => {
-        // Cari kunjungan terakhir untuk mendapatkan status risiko yang akurat (Sinkron dengan Monitoring)
+        // Cari kunjungan terakhir untuk mendapatkan status risiko yang akurat
         const patientVisits = visits.filter(v => v.patientId === p.id);
         const latestVisit = patientVisits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
         
-        // GUNAKAN FUNGSI PUSAT (utils.ts) agar warna SAMA PERSIS dengan monitoring
         const risk = getRiskCategory(p.totalRiskScore, latestVisit);
         
         // Pilih warna background marker berdasarkan label risk
@@ -59,6 +58,8 @@ export const MapView: React.FC<MapViewProps> = ({ users, visits }) => {
           animateClass = 'animate-pulse ring-4 ring-red-500/50';
         } else if (risk.label === 'MERAH') {
           markerBg = 'bg-red-600';
+          // Tambahkan efek pulsing pada marker MERAH sesuai permintaan
+          animateClass = 'animate-pulse ring-4 ring-red-400/30';
         } else if (risk.label === 'KUNING') {
           markerBg = 'bg-yellow-400';
         }
@@ -139,7 +140,7 @@ export const MapView: React.FC<MapViewProps> = ({ users, visits }) => {
           <div className="flex items-center gap-2 px-5 py-2.5 bg-slate-950 text-white rounded-2xl text-[9px] font-black uppercase">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Kritis (Hitam)
           </div>
-          <div className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border border-red-100 rounded-2xl text-[9px] font-black uppercase">
+          <div className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white ring-2 ring-red-400/30 animate-pulse rounded-2xl text-[9px] font-black uppercase shadow-lg">
             Tinggi (Merah)
           </div>
           <div className="flex items-center gap-2 px-5 py-2.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-2xl text-[9px] font-black uppercase">

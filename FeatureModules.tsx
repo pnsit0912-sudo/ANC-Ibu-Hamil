@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid, MessageSquare, Send, CheckCircle, Camera } from 'lucide-react';
+import { HeartPulse, Printer, Download, MapPin, Phone, Mail, UserX, AlertCircle, ShieldCheck, Share2, Filter, LayoutGrid, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { PUSKESMAS_INFO, EDUCATION_LIST } from './constants';
 import { User, AppState, EducationContent } from './types';
@@ -12,7 +12,7 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
   return (
     <div className="max-w-xl mx-auto space-y-10 animate-in zoom-in-95 duration-500">
       {!isUser && (
-         <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm no-print">
+         <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm">
            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-4 text-center">Pilih Identitas Pasien</label>
            <select 
              onChange={(e) => setState((prev: AppState) => ({...prev, selectedPatientId: e.target.value}))}
@@ -25,15 +25,10 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
          </div>
       )}
       {patientToDisplay && (
-        <div 
-          className="bg-white p-12 rounded-[4rem] shadow-2xl relative overflow-hidden border-b-[12px] border-indigo-600 print:shadow-none print:border-4 print:rounded-none print-full-card"
-          style={{ WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}
-        >
-          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-600 rounded-bl-[12rem] flex items-center justify-center p-10 text-white print:bg-indigo-600">
-            <ShieldCheck size={64} className="opacity-40" />
-          </div>
+        <div className="bg-white p-12 rounded-[4rem] shadow-2xl relative overflow-hidden border-b-[12px] border-indigo-600 print:shadow-none print:border-4">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-600 rounded-bl-[12rem] flex items-center justify-center p-10 text-white"><ShieldCheck size={64} className="opacity-40" /></div>
           <div className="flex flex-col items-center gap-10">
-            <div className="bg-white p-5 border-8 border-indigo-600 rounded-[3.5rem] shadow-2xl relative print:shadow-none">
+            <div className="bg-white p-5 border-8 border-indigo-600 rounded-[3.5rem] shadow-2xl relative">
               <QRCode value={`ANC-${patientToDisplay.id}`} size={200} />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
                 <HeartPulse size={48} className="text-indigo-600" />
@@ -42,8 +37,8 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
             <div className="text-center">
               <h1 className="text-4xl font-black text-indigo-900 tracking-tighter uppercase leading-none">KARTU ANC PINTAR</h1>
               <p className="text-[10px] font-black text-indigo-400 tracking-[0.4em] uppercase mt-2">Sistem Integrasi Puskesmas</p>
-              <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase print:bg-indigo-50">
-                <ShieldCheck size={12} /> Login Otomatis via QR Aktif
+              <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">
+                <ShieldCheck size={12} /> Terverifikasi Medis
               </div>
             </div>
             <div className="w-full space-y-5 border-t-2 border-dashed border-gray-100 pt-10">
@@ -52,28 +47,16 @@ export const SmartCardModule = ({ state, setState, isUser, user }: { state: AppS
               <div className="flex justify-between items-center"><span className="text-gray-400 font-black uppercase text-[10px]">Puskesmas</span><span className="font-black text-gray-900 text-xs">{PUSKESMAS_INFO.name}</span></div>
             </div>
           </div>
-          <div className="mt-10 bg-gray-900 p-8 rounded-[2.5rem] text-white flex flex-col items-center text-center gap-4 print:bg-gray-900">
-            <div className="bg-white/10 p-3 rounded-2xl">
-              <Camera size={24} className="text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Petunjuk Login Cepat</p>
-              <p className="text-[11px] font-bold mt-2">Cetak kartu ini dan gunakan fitur 'Scan Kartu' pada halaman login untuk masuk ke aplikasi tanpa mengetik username & password.</p>
-            </div>
+          <div className="mt-10 bg-gray-900 p-6 rounded-[2.5rem] text-white flex items-center justify-between">
+            <div><p className="text-[8px] font-black uppercase opacity-40">Update Terakhir</p><p className="text-[10px] font-bold">Terintegrasi Cloud</p></div>
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /><span className="text-[9px] font-black">SISTEM AKTIF</span></div>
           </div>
         </div>
       )}
       {patientToDisplay && (
         <div className="flex gap-4 no-print">
-          <button 
-            onClick={() => window.print()} 
-            className="flex-1 py-5 bg-indigo-600 text-white rounded-[2rem] font-black shadow-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all uppercase text-xs active:scale-95"
-          >
-            <Printer size={20} /> Cetak Kartu Sekarang
-          </button>
-          <button className="flex-1 py-5 bg-gray-100 text-gray-600 rounded-[2rem] font-black flex items-center justify-center gap-3 hover:scale-105 transition-all uppercase text-xs">
-            <Download size={20} /> Unduh PDF
-          </button>
+          <button onClick={() => window.print()} className="flex-1 py-5 bg-indigo-600 text-white rounded-[2rem] font-black shadow-2xl flex items-center justify-center gap-3 hover:scale-105 transition-all uppercase text-xs"><Printer size={20} /> Cetak Kartu</button>
+          <button className="flex-1 py-5 bg-gray-100 text-gray-600 rounded-[2rem] font-black flex items-center justify-center gap-3 hover:scale-105 transition-all uppercase text-xs"><Download size={20} /> Unduh PDF</button>
         </div>
       )}
     </div>
@@ -329,3 +312,14 @@ export const ContactModule = () => {
     </div>
   );
 };
+
+// Modul Akses Ditolak
+export const AccessDenied = () => (
+  <div className="p-20 text-center animate-in zoom-in duration-500">
+    <div className="bg-red-50 p-16 rounded-[4rem] border-4 border-dashed border-red-200">
+      <UserX size={80} className="mx-auto text-red-400 mb-6" />
+      <h2 className="text-3xl font-black text-red-600 uppercase tracking-tighter">Akses Sistem Dicabut</h2>
+      <p className="text-red-500 font-bold mt-2">Silakan hubungi administrator puskesmas untuk verifikasi ulang identitas Anda.</p>
+    </div>
+  </div>
+);
