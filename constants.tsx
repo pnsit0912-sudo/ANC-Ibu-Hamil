@@ -312,20 +312,38 @@ export const MOCK_ANC_VISITS: ANCVisit[] = [
 export const EDUCATION_LIST: EducationContent[] = [
   {
     id: 'e1',
-    title: 'Gizi Seimbang Ibu Hamil',
+    title: 'Gizi Seimbang Ibu Hamil (Kemenkes)',
     type: 'TEXT',
     category: 'Gizi',
     content: 'Pentingnya asupan protein, zat besi, dan asam folat selama masa kehamilan untuk mencegah anemia dan stunting.',
     thumbnail: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=800&q=80',
-    url: 'https://promkes.kemkes.go.id/pentingnya-gizi-seimbang-bagi-ibu-hamil'
+    url: 'https://ayosehat.kemkes.go.id/pentingnya-pemenuhan-gizi-seimbang-bagi-ibu-hamil'
   },
   {
     id: 'e2',
-    title: 'Mengenali Tanda Bahaya Kehamilan',
+    title: 'Tanda Bahaya Kehamilan (Video)',
     type: 'VIDEO',
     category: 'Emergensi',
-    content: 'Pelajari gejala kritis seperti perdarahan, pusing hebat, dan ketuban pecah dini yang memerlukan tindakan segera.',
+    content: 'Visualisasi gejala kritis seperti perdarahan, pusing hebat, dan bengkak pada kaki yang perlu segera ditangani.',
     thumbnail: 'https://images.unsplash.com/photo-1505751172107-597d5a4d73dd?auto=format&fit=crop&w=800&q=80',
-    url: 'https://www.youtube.com/watch?v=kYI0W7U2H_Y'
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1'
+  },
+  {
+    id: 'e3',
+    title: 'Tips Persalinan Aman & Nyaman',
+    type: 'TEXT',
+    category: 'Persiapan',
+    content: 'Persiapan fisik dan mental menjelang persalinan, termasuk teknik pernapasan dan perlengkapan tas rumah sakit.',
+    thumbnail: 'https://images.unsplash.com/photo-1519494080410-f9aa76cb4283?auto=format&fit=crop&w=800&q=80',
+    url: 'https://promkes.kemkes.go.id/6-persiapan-persalinan-yang-harus-diketahui-ibu-hamil'
+  },
+  {
+    id: 'e4',
+    title: 'Pentingnya Tablet Tambah Darah',
+    type: 'TEXT',
+    category: 'Gizi',
+    content: 'Alasan mengapa ibu hamil wajib mengonsumsi TTD minimal 90 tablet selama masa kehamilan.',
+    thumbnail: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
+    url: 'https://sehatnegeriku.kemkes.go.id/baca/rilis-media/20230125/4742278/cegah-stunting-sejak-hamil-dengan-konsumsi-tablet-tambah-darah/'
   }
 ];
