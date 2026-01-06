@@ -5,16 +5,21 @@ import { calculatePregnancyProgress, getRiskCategory } from './utils';
 import { 
   X, Baby, Calendar, MapPin, Activity, Stethoscope, 
   Heart, Droplets, AlertCircle, ClipboardCheck, ArrowLeft, Phone, Info,
-  ShieldCheck, CheckCircle, BookOpen, ShieldAlert
+  ShieldCheck, CheckCircle, BookOpen, ShieldAlert, Edit3, Trash2
 } from 'lucide-react';
 
 interface PatientProfileViewProps {
   patient: User;
   visits: ANCVisit[];
   onClose: () => void;
+  onEditVisit?: (visit: ANCVisit) => void;
+  onDeleteVisit?: (visitId: string) => void;
+  isStaff?: boolean;
 }
 
-export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient, visits, onClose }) => {
+export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ 
+  patient, visits, onClose, onEditVisit, onDeleteVisit, isStaff = false 
+}) => {
   const progress = calculatePregnancyProgress(patient.hpht);
   const patientVisits = visits
     .filter(v => v.patientId === patient.id)
@@ -25,7 +30,6 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
 
   return (
     <div className="relative animate-in fade-in slide-in-from-bottom-10 duration-700">
-      {/* Redesigned Fixed Header Button */}
       <div className="absolute top-4 right-4 md:top-6 md:right-6 z-50">
         <button 
           onClick={onClose}
@@ -37,7 +41,6 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
       </div>
 
       <div className="p-4 md:p-12 lg:p-16 space-y-6 md:space-y-12">
-        {/* Header Profile Section */}
         <div className="bg-white p-6 md:p-14 rounded-[2rem] md:rounded-[4.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 md:gap-10 relative overflow-hidden">
           <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10 relative z-10 w-full md:w-auto">
             <div className={`w-20 h-20 md:w-36 md:h-36 rounded-2xl md:rounded-[3.5rem] flex items-center justify-center text-3xl md:text-5xl font-black ${risk.color} shadow-2xl shadow-indigo-100 ring-4 md:ring-8 ring-gray-50 shrink-0`}>
@@ -61,13 +64,10 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
               <Phone size={18} /> Hubungi Pasien
             </a>
           </div>
-          
-          {/* Subtle Background Pattern */}
           <ShieldCheck size={200} className="absolute -right-10 -bottom-10 md:-right-20 md:-bottom-20 opacity-5 pointer-events-none rotate-12 text-indigo-900" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12">
-          {/* Left Column: Pregnancy Status & Info */}
           <div className="lg:col-span-1 space-y-6 md:space-y-10">
             <div className="bg-indigo-600 p-8 md:p-12 rounded-[2.5rem] md:rounded-[4rem] text-white shadow-2xl relative overflow-hidden group">
               <h3 className="text-[9px] md:text-xs font-black uppercase tracking-[0.2em] md:tracking-[0.4em] opacity-60 mb-8 md:mb-10 flex items-center gap-3">
@@ -114,17 +114,10 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
                     <p className="text-[10px] md:text-xs font-black text-gray-900">{patient.kecamatan}</p>
                   </div>
                 </div>
-                {patient.lat && (
-                  <div className="p-3 md:p-5 bg-indigo-50 border border-indigo-100 rounded-2xl md:rounded-3xl flex items-center justify-center gap-2 md:gap-3">
-                    <MapPin size={14} className="text-indigo-600" />
-                    <code className="text-[9px] md:text-[10px] font-black text-indigo-600 tracking-tighter">{patient.lat}, {patient.lng}</code>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Right Column: ANC History Timeline */}
           <div className="lg:col-span-2 space-y-6 md:space-y-10">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-2 gap-4">
               <h3 className="text-xl md:text-3xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-3 md:gap-4">
@@ -146,7 +139,6 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
               ) : (
                 patientVisits.map((visit, idx) => (
                   <div key={visit.id} className="bg-white rounded-[2rem] md:rounded-[3.5rem] shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-right-10" style={{ animationDelay: `${idx * 100}ms` }}>
-                    {/* Timeline Visit Header */}
                     <div className="bg-gray-50/70 px-6 md:px-10 py-6 md:py-8 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6">
                       <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
                         <div className="bg-white p-3 md:p-4 rounded-2xl md:rounded-3xl shadow-xl border border-gray-50 text-indigo-600 shrink-0">
@@ -157,14 +149,31 @@ export const PatientProfileView: React.FC<PatientProfileViewProps> = ({ patient,
                           <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mt-0.5 truncate">Oleh Nakes ID: {visit.nakesId}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto justify-end">
-                         <p className="text-[7px] md:text-[9px] font-black text-indigo-400 uppercase tracking-widest">Kontrol:</p>
+                      <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                         {isStaff && (
+                           <div className="flex items-center gap-2 mr-4">
+                             <button 
+                               onClick={() => onEditVisit?.(visit)}
+                               className="p-3 bg-white border border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-100 rounded-xl transition-all shadow-sm"
+                               title="Edit Data Pemeriksaan"
+                             >
+                               <Edit3 size={16} />
+                             </button>
+                             <button 
+                               onClick={() => onDeleteVisit?.(visit.id)}
+                               className="p-3 bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-100 rounded-xl transition-all shadow-sm"
+                               title="Hapus Data Pemeriksaan"
+                             >
+                               <Trash2 size={16} />
+                             </button>
+                           </div>
+                         )}
+                         <div className="hidden sm:block text-[7px] md:text-[9px] font-black text-indigo-400 uppercase tracking-widest">Kontrol:</div>
                          <div className="px-4 md:px-6 py-1.5 md:py-2 bg-indigo-600 text-white rounded-xl md:rounded-2xl text-[9px] md:text-[11px] font-black shadow-lg shadow-indigo-100 uppercase tracking-tighter">{visit.nextVisitDate}</div>
                       </div>
                     </div>
 
                     <div className="p-6 md:p-14 space-y-8 md:space-y-12">
-                      {/* Medical Metrics Cards */}
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-6">
                         {[
                           { label: 'TD (mmHg)', val: visit.bloodPressure, icon: <Activity size={14}/>, color: 'text-indigo-600' },

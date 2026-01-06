@@ -8,7 +8,7 @@ import {
   UserPlus, Edit3, X, Clock, Baby, Trash2, ShieldCheck, LayoutDashboard, Activity, 
   MapPin, ShieldAlert, QrCode, BookOpen, Map as MapIcon, Phone, Navigation as NavIcon, Crosshair,
   RefreshCw, Stethoscope, Heart, Droplets, Thermometer, ClipboardCheck, ArrowRight, ExternalLink,
-  Info, Bell, Eye, Star, TrendingUp, CheckSquare, Zap, Shield, List, Sparkles, BrainCircuit, Waves, Utensils, Download, Upload, Database, UserX
+  Info, Bell, Eye, Star, TrendingUp, CheckSquare, Zap, Shield, List, Sparkles, BrainCircuit, Waves, Utensils, Download, Upload, Database, UserX, Save
 } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -43,6 +43,7 @@ export default function App() {
   const [patientSearch, setPatientSearch] = useState('');
   const [editingPatient, setEditingPatient] = useState<User | null>(null);
   const [isAddingVisit, setIsAddingVisit] = useState<User | null>(null);
+  const [editingVisit, setEditingVisit] = useState<{patient: User, visit: ANCVisit} | null>(null);
   const [viewingPatientProfile, setViewingPatientProfile] = useState<string | null>(null);
   const [tempRiskFactors, setTempRiskFactors] = useState<string[]>([]);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -98,7 +99,6 @@ export default function App() {
       const latest = patientVisits[0];
       
       if (latest && latest.nextVisitDate < today) {
-        // Cek apakah sudah ada alert yang sama (mangkir) yang belum dibaca
         const alreadyAlerted = state.alerts.find(a => a.patientId === patient.id && a.type === 'MISSED' && !a.isRead);
         if (!alreadyAlerted) {
           newAlerts.push({
@@ -138,6 +138,20 @@ export default function App() {
       logs: [newLog, ...prev.logs].slice(0, 100)
     }));
   }, [currentUser]);
+
+  const handleDeleteVisit = (visitId: string) => {
+    if (!window.confirm('Hapus permanen riwayat pemeriksaan ini?')) return;
+    const visit = state.ancVisits.find(v => v.id === visitId);
+    const patient = state.users.find(u => u.id === visit?.patientId);
+    
+    setState(prev => ({
+      ...prev,
+      ancVisits: prev.ancVisits.filter(v => v.id !== visitId)
+    }));
+    
+    addLog('DELETE_VISIT', 'ANC', `Menghapus riwayat ANC ${patient?.name || 'Pasien'} tanggal ${visit?.visitDate}`);
+    showNotification('Riwayat pemeriksaan dihapus');
+  };
 
   const handleExportSystemData = () => {
     const dataStr = JSON.stringify(state, null, 2);
@@ -185,6 +199,7 @@ export default function App() {
     }
     setEditingPatient(null);
     setIsAddingVisit(null);
+    setEditingVisit(null);
     setViewingPatientProfile(null);
     setTempRiskFactors([]);
     setView(targetView);
@@ -256,13 +271,15 @@ export default function App() {
 
   const handleVisitSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isAddingVisit || !currentUser) return;
+    const activePatient = isAddingVisit || editingVisit?.patient;
+    if (!activePatient || !currentUser) return;
+    
     const formData = new FormData(e.currentTarget);
     const visitData: ANCVisit = {
-      id: `v${Date.now()}`,
-      patientId: isAddingVisit.id,
-      visitDate: new Date().toISOString().split('T')[0],
-      scheduledDate: new Date().toISOString().split('T')[0],
+      id: editingVisit ? editingVisit.visit.id : `v${Date.now()}`,
+      patientId: activePatient.id,
+      visitDate: editingVisit ? editingVisit.visit.visitDate : new Date().toISOString().split('T')[0],
+      scheduledDate: editingVisit ? editingVisit.visit.scheduledDate : new Date().toISOString().split('T')[0],
       nextVisitDate: formData.get('nextVisit') as string,
       weight: parseFloat(formData.get('weight') as string),
       bloodPressure: formData.get('bp') as string,
@@ -275,20 +292,33 @@ export default function App() {
       fetalMovement: formData.get('fetalMovement') as string,
       followUp: formData.get('followUp') as string,
       nakesNotes: formData.get('notes') as string,
-      nakesId: currentUser.id,
+      nakesId: editingVisit ? editingVisit.visit.nakesId : currentUser.id,
       status: 'COMPLETED'
     };
-    const finalRisk = getRiskCategory(isAddingVisit.totalRiskScore, visitData);
+    
+    const finalRisk = getRiskCategory(activePatient.totalRiskScore, visitData);
+    
     setState(prev => {
       const alerts = [...prev.alerts];
       if (finalRisk.label === 'HITAM' || finalRisk.label === 'MERAH') {
-        alerts.unshift({ id: `alert-${Date.now()}`, type: 'EMERGENCY', patientId: isAddingVisit.id, patientName: isAddingVisit.name, message: `Risiko ${finalRisk.label} terdeteksi!`, timestamp: new Date().toISOString(), isRead: false });
+        alerts.unshift({ id: `alert-${Date.now()}`, type: 'EMERGENCY', patientId: activePatient.id, patientName: activePatient.name, message: `Risiko ${finalRisk.label} terdeteksi!`, timestamp: new Date().toISOString(), isRead: false });
       }
-      addLog('ANC_VISIT', 'ANC', `Pemeriksaan ANC ${isAddingVisit.name}`);
-      return { ...prev, ancVisits: [...prev.ancVisits, visitData], alerts: alerts.slice(0, 50) };
+      
+      let newVisits = [...prev.ancVisits];
+      if (editingVisit) {
+        newVisits = newVisits.map(v => v.id === editingVisit.visit.id ? visitData : v);
+        addLog('UPDATE_ANC_VISIT', 'ANC', `Memperbarui riwayat ANC ${activePatient.name}`);
+      } else {
+        newVisits.push(visitData);
+        addLog('ANC_VISIT', 'ANC', `Pemeriksaan ANC ${activePatient.name}`);
+      }
+      
+      return { ...prev, ancVisits: newVisits, alerts: alerts.slice(0, 50) };
     });
+    
     setIsAddingVisit(null);
-    showNotification('Pemeriksaan Berhasil Disimpan');
+    setEditingVisit(null);
+    showNotification(editingVisit ? 'Data riwayat diperbarui' : 'Pemeriksaan Berhasil Disimpan');
   };
 
   const DashboardHome = () => {
@@ -306,7 +336,6 @@ export default function App() {
 
       return (
         <div className="space-y-8 md:space-y-12 animate-in fade-in duration-700">
-          {/* Welcome Card & Baby Growth */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10">
             <div className="lg:col-span-2 bg-indigo-600 p-8 md:p-14 rounded-[3rem] md:rounded-[4.5rem] text-white shadow-2xl relative overflow-hidden group">
                <div className="relative z-10">
@@ -352,7 +381,6 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
-            {/* Checklist Harian */}
             <div className="bg-white p-8 md:p-12 rounded-[3rem] md:rounded-[4rem] shadow-sm border border-gray-100">
                <div className="flex items-center justify-between mb-10">
                   <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-4">
@@ -394,7 +422,6 @@ export default function App() {
                </div>
             </div>
 
-            {/* Health Snapshot */}
             <div className="space-y-8">
                <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-4 px-2">
                   <Stethoscope className="text-indigo-600" size={28} /> Hasil Pemeriksaan Terakhir
@@ -467,7 +494,7 @@ export default function App() {
                 <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
                   {state.logs.slice(0, 8).map(log => (
                     <div key={log.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 transition-all hover:bg-indigo-50/50">
-                       <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 border border-gray-200 shadow-sm shrink-0"><Zap size={16}/></div>
+                       <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 border border-gray-200 shadow-sm"><Zap size={16}/></div>
                        <div className="flex-1 min-w-0"><p className="text-[11px] font-black text-gray-900 uppercase truncate">{log.action}</p><p className="text-[9px] font-bold text-gray-400 mt-0.5 leading-tight line-clamp-1">{log.details}</p></div>
                        <p className="text-[8px] font-black text-gray-300 shrink-0">{new Date(log.timestamp).toLocaleTimeString()}</p>
                     </div>
@@ -555,7 +582,7 @@ export default function App() {
   if (!currentUser) return <LoginScreen users={state.users} onLogin={(u) => setCurrentUser(u)} />;
 
   const currentRegisterRisk = getRiskCategory(tempRiskFactors.reduce((acc, id) => acc + (RISK_FACTORS_MASTER[id]?.score || 0), 0));
-  const liveTriase = isAddingVisit ? getRiskCategory(isAddingVisit.totalRiskScore, visitPreviewData) : null;
+  const liveTriase = (isAddingVisit || editingVisit) ? getRiskCategory((isAddingVisit || editingVisit?.patient)!.totalRiskScore, visitPreviewData) : null;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans overflow-x-hidden">
@@ -566,7 +593,7 @@ export default function App() {
           {notification && <div className="fixed top-6 md:top-10 left-1/2 -translate-x-1/2 z-[999] px-6 md:px-10 py-4 md:py-6 bg-slate-900 text-white rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in slide-in-from-top-10"><CheckCircle size={20} className="text-emerald-400" /><p className="text-xs font-black uppercase tracking-widest">{notification.message}</p></div>}
           {view === 'dashboard' && <DashboardHome />}
           {view === 'patients' && currentUser.role !== UserRole.USER && (
-            <PatientList users={state.users} visits={state.ancVisits} onEdit={(u) => { setEditingPatient(u); setTempRiskFactors(u.selectedRiskFactors); setView('register'); }} onAddVisit={(u) => { setIsAddingVisit(u); setVisitPreviewData({ bloodPressure: '120/80', dangerSigns: [], fetalMovement: 'Normal', djj: 140 }); }} onViewProfile={(id) => setViewingPatientProfile(id)} onDeletePatient={(id) => { if(window.confirm('Hapus permanen?')) setState(prev => ({...prev, users: prev.users.filter(u => u.id !== id)})) }} onDeleteVisit={() => {}} onToggleVisitStatus={() => {}} currentUserRole={currentUser.role} searchFilter={patientSearch} />
+            <PatientList users={state.users} visits={state.ancVisits} onEdit={(u) => { setEditingPatient(u); setTempRiskFactors(u.selectedRiskFactors); setView('register'); }} onAddVisit={(u) => { setIsAddingVisit(u); setVisitPreviewData({ bloodPressure: '120/80', dangerSigns: [], fetalMovement: 'Normal', djj: 140 }); }} onViewProfile={(id) => setViewingPatientProfile(id)} onDeletePatient={(id) => { if(window.confirm('Hapus permanen?')) setState(prev => ({...prev, users: prev.users.filter(u => u.id !== id)})) }} onDeleteVisit={handleDeleteVisit} onToggleVisitStatus={() => {}} currentUserRole={currentUser.role} searchFilter={patientSearch} />
           )}
           {view === 'register' && currentUser.role !== UserRole.USER && (
             <div className="max-w-5xl mx-auto space-y-10 animate-in zoom-in-95">
@@ -602,14 +629,14 @@ export default function App() {
               </div>
             </div>
           )}
-          {isAddingVisit && (
-            <div className="fixed inset-0 z-[100] bg-indigo-950/80 backdrop-blur-2xl flex items-start justify-center p-2 md:p-10 overflow-y-auto"><div className="bg-white w-full max-w-5xl rounded-[1.5rem] md:rounded-[4.5rem] shadow-2xl my-4 md:my-auto animate-in zoom-in-95 duration-700 relative flex flex-col"><div className="bg-indigo-600 p-6 md:p-16 text-white flex flex-col md:flex-row justify-between items-center gap-6 shrink-0 relative overflow-hidden rounded-t-[4.5rem]"><div className="relative z-10 text-center md:text-left"><h2 className="text-4xl font-black uppercase tracking-tighter">Input ANC</h2><p className="text-indigo-200 font-bold text-xs uppercase tracking-[0.3em] mt-2">Ibu {isAddingVisit.name}</p></div><div className={`relative z-10 px-8 py-4 rounded-[2rem] flex items-center gap-4 border-4 shadow-2xl ${liveTriase?.color}`}><div className="text-left"><p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Triase Live</p><p className="text-lg font-black uppercase tracking-tighter">{liveTriase?.label}</p></div><ShieldAlert size={32} className={liveTriase?.label === 'HITAM' ? 'animate-pulse' : ''} /></div><button onClick={() => setIsAddingVisit(null)} className="relative z-10 p-5 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"><X size={18}/></button><Activity size={180} className="absolute -left-10 -bottom-10 opacity-5" /></div><form onSubmit={handleVisitSubmit} className="p-6 md:p-20 space-y-16"><div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">BB (kg)</label><input name="weight" type="number" step="0.1" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
-                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">TD (mmHg)</label><input name="bp" placeholder="120/80" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required onChange={(e) => setVisitPreviewData(prev => ({ ...prev, bloodPressure: e.target.value }))} /></div>
-                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">TFU (cm)</label><input name="tfu" type="number" step="0.1" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
-                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">DJJ (x/m)</label><input name="djj" type="number" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required onChange={(e) => setVisitPreviewData(prev => ({ ...prev, djj: Number(e.target.value) }))} /></div>
-                      <div className="space-y-3 col-span-2 md:col-span-1"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Hb (g/dL)</label><input name="hb" type="number" step="0.1" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
-                  </div><div className="grid grid-cols-1 md:grid-cols-2 gap-16"><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><AlertCircle size={16}/> Observasi Bahaya</h4><div className="grid grid-cols-2 gap-4">{['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut Hebat', 'Demam'].map(s => (<label key={s} className="flex items-center gap-5 p-5 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all cursor-pointer border-2 border-transparent hover:border-red-200 group"><input type="checkbox" name="dangerSigns" value={s} className="accent-red-600 w-5 h-5 shrink-0" onChange={(e) => { const current = visitPreviewData.dangerSigns || []; const updated = e.target.checked ? [...current, s] : current.filter(x => x !== s); setVisitPreviewData(prev => ({ ...prev, dangerSigns: updated })); }} /><span className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:text-red-600 truncate">{s}</span></label>))}</div></div><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><Baby size={16}/> Kondisi Janin</h4><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Gerak Janin</label><select name="fetalMovement" className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-sm outline-none focus:ring-8 focus:ring-indigo-50" onChange={(e) => setVisitPreviewData(prev => ({ ...prev, fetalMovement: e.target.value }))} required><option value="Normal">NORMAL / AKTIF</option><option value="Kurang Aktif">KURANG AKTIF</option><option value="Tidak Ada">TIDAK ADA (EMERGENCY)</option></select></div><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Keluhan</label><textarea name="complaints" placeholder="Tuliskan jika ada..." className="w-full p-6 bg-gray-50 border-none rounded-[2rem] font-bold text-sm outline-none focus:ring-8 focus:ring-indigo-50" rows={3}></textarea></div></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10 bg-indigo-50/50 p-10 rounded-[3.5rem] border border-indigo-100"><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><ClipboardCheck size={16}/> Rencana (Plan)</h4><select name="followUp" className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black text-xs outline-none focus:ring-8 focus:ring-indigo-100" required><option value="ANC_RUTIN">KONTROL RUTIN</option><option value="KONSUL_DOKTER">KONSULTASI OBGYN</option><option value="RUJUK_RS">RUJUK RS (KRITIS)</option></select><textarea name="notes" placeholder="Catatan Bidan..." className="w-full p-6 bg-white border border-indigo-200 rounded-[2rem] font-bold text-xs outline-none focus:ring-8 focus:ring-indigo-100" rows={3}></textarea></div><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><Calendar size={16}/> Jadwal Ulang</h4><div className="space-y-2"><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">Kontrol Berikutnya</label><input type="date" name="nextVisit" className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black outline-none text-base" required /></div><div className="p-8 bg-indigo-600 rounded-[2.5rem] text-white flex items-start gap-4 shadow-xl"><Info size={16} className="shrink-0" /><p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">Pastikan hadir tepat waktu untuk menjaga kesehatan Ibu dan Buah Hati.</p></div></div></div><div className="flex flex-col md:flex-row gap-8 pb-4"><button type="submit" className="w-full md:flex-1 py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.3em] shadow-2xl transition-all">Selesaikan</button><button type="button" onClick={() => setIsAddingVisit(null)} className="w-full md:py-7 px-16 bg-gray-100 text-gray-500 rounded-[2.5rem] font-black uppercase text-sm tracking-widest hover:bg-gray-200 transition-all">Batal</button></div></form></div></div>
+          {(isAddingVisit || editingVisit) && (
+            <div className="fixed inset-0 z-[100] bg-indigo-950/80 backdrop-blur-2xl flex items-start justify-center p-2 md:p-10 overflow-y-auto"><div className="bg-white w-full max-w-5xl rounded-[1.5rem] md:rounded-[4.5rem] shadow-2xl my-4 md:my-auto animate-in zoom-in-95 duration-700 relative flex flex-col"><div className="bg-indigo-600 p-6 md:p-16 text-white flex flex-col md:flex-row justify-between items-center gap-6 shrink-0 relative overflow-hidden rounded-t-[4.5rem]"><div className="relative z-10 text-center md:text-left"><h2 className="text-4xl font-black uppercase tracking-tighter">{editingVisit ? 'Edit Riwayat' : 'Input ANC'}</h2><p className="text-indigo-200 font-bold text-xs uppercase tracking-[0.3em] mt-2">Ibu {(isAddingVisit || editingVisit?.patient)!.name}</p></div><div className={`relative z-10 px-8 py-4 rounded-[2rem] flex items-center gap-4 border-4 shadow-2xl ${liveTriase?.color}`}><div className="text-left"><p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Triase Live</p><p className="text-lg font-black uppercase tracking-tighter">{liveTriase?.label}</p></div><ShieldAlert size={32} className={liveTriase?.label === 'HITAM' ? 'animate-pulse' : ''} /></div><button onClick={() => {setIsAddingVisit(null); setEditingVisit(null);}} className="relative z-10 p-5 bg-white/10 hover:bg-white/20 rounded-xl md:rounded-2xl transition-all"><X size={18}/></button><Activity size={180} className="absolute -left-10 -bottom-10 opacity-5" /></div><form onSubmit={handleVisitSubmit} className="p-6 md:p-20 space-y-16"><div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">BB (kg)</label><input name="weight" type="number" step="0.1" defaultValue={editingVisit?.visit.weight} className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
+                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">TD (mmHg)</label><input name="bp" placeholder="120/80" defaultValue={editingVisit?.visit.bloodPressure} className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required onChange={(e) => setVisitPreviewData(prev => ({ ...prev, bloodPressure: e.target.value }))} /></div>
+                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">TFU (cm)</label><input name="tfu" type="number" step="0.1" defaultValue={editingVisit?.visit.tfu} className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
+                      <div className="space-y-3"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">DJJ (x/m)</label><input name="djj" type="number" defaultValue={editingVisit?.visit.djj} className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required onChange={(e) => setVisitPreviewData(prev => ({ ...prev, djj: Number(e.target.value) }))} /></div>
+                      <div className="space-y-3 col-span-2 md:col-span-1"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Hb (g/dL)</label><input name="hb" type="number" step="0.1" defaultValue={editingVisit?.visit.hb} className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-lg outline-none focus:ring-8 focus:ring-indigo-50" required /></div>
+                  </div><div className="grid grid-cols-1 md:grid-cols-2 gap-16"><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><AlertCircle size={16}/> Observasi Bahaya</h4><div className="grid grid-cols-2 gap-4">{['Perdarahan', 'Ketuban Pecah', 'Kejang', 'Pusing Hebat', 'Nyeri Perut Hebat', 'Demam'].map(s => (<label key={s} className="flex items-center gap-5 p-5 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all cursor-pointer border-2 border-transparent hover:border-red-200 group"><input type="checkbox" name="dangerSigns" value={s} defaultChecked={editingVisit?.visit.dangerSigns.includes(s)} className="accent-red-600 w-5 h-5 shrink-0" onChange={(e) => { const current = visitPreviewData.dangerSigns || []; const updated = e.target.checked ? [...current, s] : current.filter(x => x !== s); setVisitPreviewData(prev => ({ ...prev, dangerSigns: updated })); }} /><span className="text-[10px] font-black text-gray-600 uppercase tracking-widest group-hover:text-red-600 truncate">{s}</span></label>))}</div></div><div className="space-y-8"><h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2"><Baby size={16}/> Kondisi Janin</h4><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Gerak Janin</label><select name="fetalMovement" defaultValue={editingVisit?.visit.fetalMovement || 'Normal'} className="w-full p-6 bg-gray-50 border-none rounded-2xl font-black text-sm outline-none focus:ring-8 focus:ring-indigo-50" onChange={(e) => setVisitPreviewData(prev => ({ ...prev, fetalMovement: e.target.value }))} required><option value="Normal">NORMAL / AKTIF</option><option value="Kurang Aktif">KURANG AKTIF</option><option value="Tidak Ada">TIDAK ADA (EMERGENCY)</option></select></div><div className="space-y-4"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Keluhan</label><textarea name="complaints" defaultValue={editingVisit?.visit.complaints} placeholder="Tuliskan jika ada..." className="w-full p-6 bg-gray-50 border-none rounded-[2rem] font-bold text-sm outline-none focus:ring-8 focus:ring-indigo-50" rows={3}></textarea></div></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10 bg-indigo-50/50 p-10 rounded-[3.5rem] border border-indigo-100"><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><ClipboardCheck size={16}/> Rencana (Plan)</h4><select name="followUp" defaultValue={editingVisit?.visit.followUp || 'ANC_RUTIN'} className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black text-xs outline-none focus:ring-8 focus:ring-indigo-100" required><option value="ANC_RUTIN">KONTROL RUTIN</option><option value="KONSUL_DOKTER">KONSULTASI OBGYN</option><option value="RUJUK_RS">RUJUK RS (KRITIS)</option></select><textarea name="notes" defaultValue={editingVisit?.visit.nakesNotes} placeholder="Catatan Bidan..." className="w-full p-6 bg-white border border-indigo-200 rounded-[2rem] font-bold text-xs outline-none focus:ring-8 focus:ring-indigo-100" rows={3}></textarea></div><div className="space-y-6"><h4 className="text-xs font-black text-indigo-900 uppercase tracking-[0.3em] flex items-center gap-3"><Calendar size={16}/> Jadwal Ulang</h4><div className="space-y-2"><label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">Kontrol Berikutnya</label><input type="date" name="nextVisit" defaultValue={editingVisit?.visit.nextVisitDate} className="w-full p-6 bg-white border border-indigo-200 rounded-2xl font-black outline-none text-base" required /></div><div className="p-8 bg-indigo-600 rounded-[2.5rem] text-white flex items-start gap-4 shadow-xl"><Info size={16} className="shrink-0" /><p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">Pastikan hadir tepat waktu untuk menjaga kesehatan Ibu dan Buah Hati.</p></div></div></div><div className="flex flex-col md:flex-row gap-8 pb-4"><button type="submit" className="w-full md:flex-1 py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.3em] shadow-2xl transition-all"><Save size={18} className="inline mr-2"/> {editingVisit ? 'Simpan Perubahan' : 'Selesaikan'}</button><button type="button" onClick={() => {setIsAddingVisit(null); setEditingVisit(null);}} className="w-full md:py-7 px-16 bg-gray-100 text-gray-500 rounded-[2.5rem] font-black uppercase text-sm tracking-widest hover:bg-gray-200 transition-all">Batal</button></div></form></div></div>
           )}
           {view === 'management' && <AccessManagement state={state} setState={setState} currentUser={currentUser!} addLog={addLog} onExport={handleExportSystemData} onImport={handleImportSystemData} />}
           {view === 'monitoring' && <RiskMonitoring state={state} onViewProfile={(id)=>setViewingPatientProfile(id)} onAddVisit={(u)=>setIsAddingVisit(u)} onToggleVisitStatus={()=>{}} />}
@@ -619,7 +646,7 @@ export default function App() {
           {view === 'contact' && <ContactModule />}
           {viewingPatientProfile && (
             <div className="fixed inset-0 z-[110] bg-indigo-950/90 backdrop-blur-3xl flex items-start justify-center p-2 md:p-12 overflow-y-auto pt-10 pb-10">
-              <div className="bg-gray-50 w-full max-w-7xl rounded-[4.5rem] shadow-2xl relative border-4 border-indigo-500/20 my-auto"><PatientProfileView patient={state.users.find(u => u.id === viewingPatientProfile)!} visits={state.ancVisits} onClose={() => setViewingPatientProfile(null)} /></div>
+              <div className="bg-gray-50 w-full max-w-7xl rounded-[4.5rem] shadow-2xl relative border-4 border-indigo-500/20 my-auto"><PatientProfileView patient={state.users.find(u => u.id === viewingPatientProfile)!} visits={state.ancVisits} onClose={() => setViewingPatientProfile(null)} onEditVisit={(v) => { setEditingVisit({patient: state.users.find(u => u.id === viewingPatientProfile)!, visit: v}); setVisitPreviewData({bloodPressure: v.bloodPressure, djj: v.djj, fetalMovement: v.fetalMovement, dangerSigns: v.dangerSigns}); }} onDeleteVisit={handleDeleteVisit} isStaff={currentUser.role !== UserRole.USER} /></div>
             </div>
           )}
         </div>
